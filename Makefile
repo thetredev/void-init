@@ -5,10 +5,11 @@
 #   release-static  statically linked (CGO_ENABLED=0), stripped
 #
 # Usage:
-#   make                 # all binaries, all modes
-#   make debug           # both binaries, debug mode
-#   make release         # both binaries, release mode
-#   make release-static  # both binaries, release-static mode
+#   make                           # all binaries, all modes
+#   make debug                     # both binaries, debug mode
+#   make release                   # both binaries, release mode
+#   make release-archvie           # both binaries, release mode, archive them as release.tar.zst
+#   make release-archive-static    # both binaries, release-static mode, archive them as release-static.tar.zst
 #   make clean
 
 GO       := go
@@ -16,9 +17,9 @@ BINARIES := void-init void-initfs
 BUILDDIR := build
 STRIP_LDFLAGS := -s -w
 
-.PHONY: all debug release release-static release-archive clean FORCE
+.PHONY: all debug release release-static release-archive release-archive-static clean FORCE
 
-all: debug release release-static release-archive
+all: debug release release-static
 
 debug: $(BINARIES:%=$(BUILDDIR)/debug/usr/local/bin/%)
 release: $(BINARIES:%=$(BUILDDIR)/release/usr/local/bin/%)
@@ -39,6 +40,14 @@ $(BUILDDIR)/release-static/usr/local/bin/%: FORCE
 	CGO_ENABLED=0 $(GO) build -ldflags="$(STRIP_LDFLAGS)" -o $@ ./cmd/$*
 
 FORCE:
+
+release-archive: release
+	rm -rf $(BUILDDIR)/release/release.tar.zst
+	tar -C $(BUILDDIR)/release -cf - usr | zstd -T0 -19 - > $(BUILDDIR)/release/release.tar.zst
+
+release-archive-static: release-static
+	rm -rf $(BUILDDIR)/release-static/release-static.tar.zst
+	tar -C $(BUILDDIR)/release-static -cf - usr | zstd -T0 -19 - > $(BUILDDIR)/release-static/release-static.tar.zst
 
 clean:
 	rm -rf $(BUILDDIR)
