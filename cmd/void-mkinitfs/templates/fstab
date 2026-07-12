@@ -1,0 +1,8 @@
+# /etc/fstab: static file system information.
+#
+# <file system>              <mount point>  <type>  <options>  <dump>  <pass>
+UUID={{.RootUUID}}            /              ext4    defaults   0       1
+UUID={{.BootUUID}}            /boot          ext2    defaults   0       2
+{{- if .EFIUUID}}
+UUID={{.EFIUUID}}             /boot/efi      vfat    defaults   0       2
+{{- end}}

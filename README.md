@@ -11,9 +11,9 @@ Well, *not really*... this project focuses heavily on getting the "Proxmox versi
 `void-init` is a small, single-purpose Go binary meant to run once per boot, very early - as part of `/etc/rc.local`, which `runit` executes before any services start. On each run it:
 
 1. Scans the configured cloud-init NoCloud datasource devices (by default `/dev/sr*`, i.e. the CD-ROM image Proxmox attaches to a VM) for a `user-data` file, mounting each candidate device read-only until one is found.
-2. Parses that `user-data` as a `#cloud-config` document (the subset of keys Proxmox's Cloud-Init GUI page exposes; see [`testfiles/user-data`](testfiles/user-data)).
+2. Parses that `user-data` as a `#cloud-config` document (the subset of keys Proxmox's Cloud-Init GUI page exposes; see [`cmd/void-init/testfiles/user-data`](cmd/void-init/testfiles/user-data)).
 3. Applies it: sets the hostname, sets the target user's password hash, and installs their SSH authorized keys.
-4. Looks for a `network-config` file next to `user-data` on the same datasource and, if found, parses it as cloud-init's NoCloud `network-config` v1 format (see [`testfiles/network-config`](testfiles/network-config)) and applies it: brings interfaces up, configures DHCP/SLAAC via `dhcpcd` or static addressing directly via `ip`, and writes `/etc/resolv.conf`.
+4. Looks for a `network-config` file next to `user-data` on the same datasource and, if found, parses it as cloud-init's NoCloud `network-config` v1 format (see [`cmd/void-init/testfiles/network-config`](cmd/void-init/testfiles/network-config)) and applies it: brings interfaces up, configures DHCP/SLAAC via `dhcpcd` or static addressing directly via `ip`, and writes `/etc/resolv.conf`.
 5. Renders `/etc/hosts` from the hostname/FQDN and whatever address ended up assigned (static IP if one was configured, otherwise the `127.0.1.1` loopback alias).
 
 Every file void-init writes is idempotent to rerun and preserves a user-editable section (see [User-editable sections](#user-editable-sections) below), and always ends with exactly one trailing newline.
@@ -46,29 +46,33 @@ Since void-init runs from `/etc/rc.local`, before any syslog daemon (e.g. `sockl
 ## Building
 
 ```sh
-go build .
+go build ./...
 ```
 
-This produces a `void-init` binary (see `.gitignore`) using the templates embedded at build time via `go:embed` (see [Templates](#templates)).
+This produces both a `void-init` and a `void-mkinitfs` binary (see `.gitignore` and [void-mkinitfs](#void-mkinitfs) below) at the repo root, using the templates embedded at build time via `go:embed` (see [Templates](#templates)). To build just `void-init`: `go build ./cmd/void-init`.
 
 ## Code layout
 
+The module builds two binaries from a `cmd/` layout, sharing `internal/vlog` (see [Logging](#logging)) as their only common code:
+
 | File | Responsibility |
 | --- | --- |
-| [`main.go`](main.go) | Entry point; wires together finding, parsing, and applying `user-data` and `network-config`. |
-| [`cloudinit.go`](cloudinit.go) | Locates the cloud-init NoCloud datasource: globs candidate devices (`/dev/sr*`), mounts each read-only in turn, and reads `user-data`/`network-config` off the first one that has it. |
-| [`userdata.go`](userdata.go) | Defines the `UserData` struct (the Proxmox-exposed `#cloud-config` subset) and `ParseUserData`, which validates the `#cloud-config` header and unmarshals the YAML. |
-| [`apply.go`](apply.go) | `ApplyUserData`: sets `/etc/hostname` (and the live kernel hostname), the user's password hash via `usermod`, and `~/.ssh/authorized_keys` (managed like the other generated files, via `writeManagedFile`). |
-| [`network.go`](network.go) | Defines `NetworkConfig`/`NetworkConfigDevice`/`Subnet` (the NoCloud `network-config` v1 subset) and `ApplyNetworkConfig`, which brings interfaces up and configures them per subnet type; also owns `/etc/dhcpcd.conf`, `/etc/resolv.conf`, and the runit service enable/disable helpers. |
-| [`hosts.go`](hosts.go) | `ApplyHosts`: renders `/etc/hosts` from the `hosts` template, and `staticAddress`, which picks the address to put in it. |
-| [`fsutil.go`](fsutil.go) | Shared file-writing helpers: `writeManagedFile` (preserves the user-editable section of a managed file) and `withSingleTrailingNewline`. |
-| [`log.go`](log.go) | Leveled, syslog-style logging (see [Logging](#logging)): `logInfo`/`logWarn`/`logError`, writing to stderr and best-effort to `/var/log/void-init.log`. |
-| [`templates/`](templates) | `go:embed`-ed templates for generated files (see below). |
-| [`testfiles/`](testfiles) | Sample `user-data`/`network-config` fixtures, used both as documentation of the supported format and as test fixtures. |
+| [`cmd/void-init/main.go`](cmd/void-init/main.go) | Entry point; wires together finding, parsing, and applying `user-data` and `network-config`. |
+| [`cmd/void-init/cloudinit.go`](cmd/void-init/cloudinit.go) | Locates the cloud-init NoCloud datasource: globs candidate devices (`/dev/sr*`), mounts each read-only in turn, and reads `user-data`/`network-config` off the first one that has it. |
+| [`cmd/void-init/userdata.go`](cmd/void-init/userdata.go) | Defines the `UserData` struct (the Proxmox-exposed `#cloud-config` subset) and `ParseUserData`, which validates the `#cloud-config` header and unmarshals the YAML. |
+| [`cmd/void-init/apply.go`](cmd/void-init/apply.go) | `ApplyUserData`: sets `/etc/hostname` (and the live kernel hostname), the user's password hash via `usermod`, and `~/.ssh/authorized_keys` (managed like the other generated files, via `writeManagedFile`). |
+| [`cmd/void-init/network.go`](cmd/void-init/network.go) | Defines `NetworkConfig`/`NetworkConfigDevice`/`Subnet` (the NoCloud `network-config` v1 subset) and `ApplyNetworkConfig`, which brings interfaces up and configures them per subnet type; also owns `/etc/dhcpcd.conf`, `/etc/resolv.conf`, and the runit service enable/disable helpers. |
+| [`cmd/void-init/hosts.go`](cmd/void-init/hosts.go) | `ApplyHosts`: renders `/etc/hosts` from the `hosts` template, and `staticAddress`, which picks the address to put in it. |
+| [`cmd/void-init/fsutil.go`](cmd/void-init/fsutil.go) | Shared file-writing helpers: `writeManagedFile` (preserves the user-editable section of a managed file) and `withSingleTrailingNewline`. |
+| [`cmd/void-init/log.go`](cmd/void-init/log.go) | Wires `void-init`'s `logInfo`/`logWarn`/`logError` to `internal/vlog`, with `/var/log/void-init.log` as the file sink. |
+| [`cmd/void-init/templates/`](cmd/void-init/templates) | `go:embed`-ed templates for generated files (see below). |
+| [`cmd/void-init/testfiles/`](cmd/void-init/testfiles) | Sample `user-data`/`network-config` fixtures, used both as documentation of the supported format and as test fixtures. |
+| [`cmd/void-mkinitfs/`](cmd/void-mkinitfs) | Builds bootable Void Linux qcow2 images with `void-init` pre-installed; see [void-mkinitfs](#void-mkinitfs) below. |
+| [`internal/vlog/vlog.go`](internal/vlog/vlog.go) | Shared leveled, syslog-style logger used by both binaries (see [Logging](#logging)). |
 
 ## Supported `user-data` keys
 
-See [`testfiles/user-data`](testfiles/user-data) for a full example. Supported keys (all optional):
+See [`cmd/void-init/testfiles/user-data`](cmd/void-init/testfiles/user-data) for a full example. Supported keys (all optional):
 
 | Key | Effect |
 | --- | --- |
@@ -83,7 +87,7 @@ See [`testfiles/user-data`](testfiles/user-data) for a full example. Supported k
 
 ## Supported `network-config` keys
 
-See [`testfiles/network-config`](testfiles/network-config) for a full example. `network-config` is a `version: 1` NoCloud document whose `config` list holds a mix of:
+See [`cmd/void-init/testfiles/network-config`](cmd/void-init/testfiles/network-config) for a full example. `network-config` is a `version: 1` NoCloud document whose `config` list holds a mix of:
 
 - **`type: physical`** entries - a `mac_address` plus a list of `subnets`. The entry is resolved to an actual local interface by matching `mac_address` against the host's interfaces (`name` is parsed but not used for matching, since predictable interface naming means it isn't guaranteed to match what cloud-init supplied). Each subnet is one of:
   - `dhcp`, `dhcp4`, `dhcp6`, `ipv6_slaac`, `ipv6_dhcpv6-stateless`, `ipv6_dhcpv6-stateful` - the interface is brought up and handed to `dhcpcd` (which handles both DHCP and IPv6 SLAAC/RA), enabling the `dhcpcd` runit service.
@@ -115,9 +119,27 @@ On each run, `writeManagedFile` (in [`fsutil.go`](fsutil.go)) regenerates everyt
 go test ./...
 ```
 
-Tests parse the fixtures in [`testfiles/`](testfiles) and exercise pure logic like `subnetAddressCIDR`. Nothing that touches the live system (mounting devices, running `ip`/`usermod`, writing to `/etc`) is covered by automated tests - those paths are meant to be exercised on an actual VM.
+Tests parse the fixtures in [`cmd/void-init/testfiles/`](cmd/void-init/testfiles) and exercise pure logic like `subnetAddressCIDR`. Nothing that touches the live system (mounting devices, running `ip`/`usermod`, writing to `/etc`, or - for `void-mkinitfs` - `qemu-nbd`/`sgdisk`/`systemd-nspawn`) is covered by automated tests - those paths are meant to be exercised on an actual VM/host.
+
+## `void-mkinitfs`
+
+`void-mkinitfs` is a separate, host-side build tool that produces a bootable, cloud-init-ready Void Linux qcow2 disk image with `void-init` pre-installed and `/etc/rc.local` wired up to run it, so a VM booted from that image self-configures via `void-init` on first boot. It runs on a `systemd`-based host (uses `systemd-nspawn`, without `--boot`, to run package post-install scripts and install the bootloader inside the image being built) and targets x86_64 only.
+
+```sh
+# Build a new 3G qcow2 from scratch, BIOS or UEFI:
+void-mkinitfs --bios --libc=glibc -o void.qcow2
+void-mkinitfs --efi  --libc=musl  -o void.qcow2
+
+# Reuse an already-built image to refresh void-init/rc.local without
+# re-bootstrapping packages (layout is inferred from partition count):
+void-mkinitfs -i void.qcow2
+```
+
+Full design/implementation details - partition layout, package set, the `xbps-install`/`systemd-nspawn` pipeline, cleanup/error-handling strategy - live in [`void-mkinitfs.md`](void-mkinitfs.md).
+
+Requires `xbps-install`, `xbps-reconfigure`, `systemd-nspawn`, `qemu-img`, `qemu-nbd`, `sgdisk`, `mkfs.vfat`, `mkfs.ext2`, `mkfs.ext4`, `partprobe`, `blkid`, `grub-install`, and `grub-mkconfig` on `PATH`; run as root. If `xbps-install`/`xbps-reconfigure` aren't found, `void-mkinitfs` offers to download Void's static builds into `~/.local/bin`.
 
 ## Known limitations / TODO
 
-- No option (yet) to generate a bootable, cloud-init-ready Void Linux rootfs from scratch with void-init pre-installed.
 - Only the NoCloud datasource (CD-ROM device glob `/dev/sr*`) is supported - no HTTP/config-drive/other datasources.
+- `void-mkinitfs` targets x86_64 only (no cross-compilation), qcow2 output only, and requires a `systemd`-based host (no plain-chroot fallback for non-`systemd` hosts yet) - see `void-mkinitfs.md`'s "Explicitly out of scope" section.
