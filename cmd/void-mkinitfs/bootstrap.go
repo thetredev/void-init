@@ -22,7 +22,7 @@ func packages(l layout) []string {
 	common := []string{
 		"base-system", "linux", "dracut", "runit-void", "dhcpcd",
 		"iproute2", "openssh", "shadow", "e2fsprogs", "dosfstools",
-		"ca-certificates", "iana-etc",
+		"ca-certificates", "iana-etc", "bash-completion", "net-tools",
 	}
 
 	if l == layoutEFI {
