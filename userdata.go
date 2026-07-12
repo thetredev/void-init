@@ -14,7 +14,7 @@ import (
 const cloudConfigHeader = "#cloud-config"
 
 // UserData covers the subset of #cloud-config keys Proxmox exposes on a
-// VM's Cloud-Init page (see sample-user-data).
+// VM's Cloud-Init page (see testfiles/user-data).
 type UserData struct {
 	Hostname          string   `yaml:"hostname"`
 	FQDN              string   `yaml:"fqdn"`

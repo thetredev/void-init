@@ -6,7 +6,7 @@ import (
 )
 
 func TestParseUserDataSample(t *testing.T) {
-	data, err := os.ReadFile("sample-user-data")
+	data, err := os.ReadFile("testfiles/user-data")
 	if err != nil {
 		t.Fatal(err)
 	}

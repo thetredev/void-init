@@ -6,7 +6,7 @@ import (
 )
 
 func TestParseNetworkConfigSample(t *testing.T) {
-	data, err := os.ReadFile("sample-network-config")
+	data, err := os.ReadFile("testfiles/network-config")
 	if err != nil {
 		t.Fatal(err)
 	}
