@@ -43,6 +43,8 @@ func findCloudInitFile(name string) ([]byte, error) {
 		return nil, fmt.Errorf("no cloud-init source devices found")
 	}
 
+	logInfo("scanning %v for %s", devices, name)
+
 	mountpoint, err := os.MkdirTemp("", "void-init-cloud-init")
 	if err != nil {
 		return nil, fmt.Errorf("create mountpoint: %w", err)
@@ -52,9 +54,11 @@ func findCloudInitFile(name string) ([]byte, error) {
 	for _, device := range devices {
 		data, err := readFileFromDevice(device, mountpoint, name)
 		if err != nil {
+			logWarn("%s: %v", device, err)
 			continue
 		}
 		if data != nil {
+			logInfo("found %s on %s", name, device)
 			return data, nil
 		}
 	}

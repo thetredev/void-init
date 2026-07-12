@@ -45,6 +45,8 @@ func ApplyUserData(u *UserData) error {
 // applyHostname writes /etc/hostname and applies it to the running kernel,
 // mirroring `hostnamectl set-hostname <hostname>` on a minimal system.
 func applyHostname(hostname string) error {
+	logInfo("setting hostname to %q", hostname)
+
 	if err := os.WriteFile(hostnamePath, []byte(withSingleTrailingNewline(hostname)), 0o644); err != nil {
 		return fmt.Errorf("write %s: %w", hostnamePath, err)
 	}
@@ -59,6 +61,8 @@ func applyHostname(hostname string) error {
 // applyPassword sets the given user's password hash via usermod, mirroring
 // `usermod -p '<hash>' <user>`.
 func applyPassword(username, hash string) error {
+	logInfo("setting password for user %s", username)
+
 	cmd := exec.Command("usermod", "-p", hash, username)
 	if output, err := cmd.CombinedOutput(); err != nil {
 		return fmt.Errorf("usermod %s: %w: %s", username, err, output)
@@ -71,6 +75,8 @@ func applyPassword(username, hash string) error {
 // ~/.ssh/authorized_keys, creating the .ssh directory if needed and
 // ensuring ownership/permissions match sshd's expectations.
 func applySSHAuthorizedKeys(username string, keys []string) error {
+	logInfo("installing %d SSH authorized key(s) for user %s", len(keys), username)
+
 	u, err := user.Lookup(username)
 	if err != nil {
 		return fmt.Errorf("lookup user %s: %w", username, err)

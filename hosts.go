@@ -26,8 +26,11 @@ type hostsTemplateData struct {
 // was configured, or the loopback alias 127.0.1.1 for dynamic addressing.
 func ApplyHosts(u *UserData, address string) error {
 	if !u.ManageEtcHosts || u.Hostname == "" {
+		logInfo("manage_etc_hosts disabled or no hostname set, leaving %s untouched", hostsPath)
 		return nil
 	}
+
+	logInfo("rendering %s for %s (%s)", hostsPath, u.Hostname, address)
 
 	tmpl, err := template.New("hosts").Parse(hostsTemplate)
 	if err != nil {

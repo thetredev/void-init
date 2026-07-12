@@ -34,6 +34,8 @@ func writeManagedFile(path, rendered string, perm os.FileMode) error {
 		return fmt.Errorf("write %s: %w", path, err)
 	}
 
+	logInfo("wrote %s", path)
+
 	return nil
 }
 

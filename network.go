@@ -85,6 +85,8 @@ func ApplyNetworkConfig(nc *NetworkConfig) error {
 				return err
 			}
 
+			logInfo("configuring interface %s (mac %s)", iface, device.MacAddress)
+
 			for _, subnet := range device.Subnets {
 				switch subnet.Type {
 				case "dhcp", "dhcp4", "dhcp6", "ipv6_slaac", "ipv6_dhcpv6-stateless", "ipv6_dhcpv6-stateful":
@@ -102,6 +104,7 @@ func ApplyNetworkConfig(nc *NetworkConfig) error {
 				}
 			}
 		case "nameserver":
+			logInfo("adding global nameserver(s) %v", device.Address)
 			nameservers = append(nameservers, device.Address...)
 			search = append(search, device.Search...)
 		default:
@@ -142,6 +145,8 @@ func interfaceNameByMAC(mac string) (string, error) {
 // won't bring one up itself), and it also drives IPv6 SLAAC/RA handling, so
 // this covers dhcp as well as ipv6_slaac/dhcpv6 subnet types.
 func applyDynamicNetwork(iface string) error {
+	logInfo("bringing up %s for dynamic addressing (dhcpcd)", iface)
+
 	cmd := exec.Command("ip", "link", "set", "dev", iface, "up")
 	if output, err := cmd.CombinedOutput(); err != nil {
 		return fmt.Errorf("ip link set dev %s up: %w: %s", iface, err, output)
@@ -165,6 +170,8 @@ func applyStaticNetwork(iface string, subnet Subnet) error {
 		return fmt.Errorf("interface %s: %w", iface, err)
 	}
 
+	logInfo("bringing up %s with static address %s/%d", iface, address, cidr)
+
 	addrCmd := []string{"ip", "addr", "add", fmt.Sprintf("%s/%d", address, cidr)}
 	if net.ParseIP(address).To4() != nil {
 		addrCmd = append(addrCmd, "brd", "+")
@@ -180,6 +187,7 @@ func applyStaticNetwork(iface string, subnet Subnet) error {
 	}
 
 	for _, args := range commands {
+		logInfo("running: %s", strings.Join(args, " "))
 		cmd := exec.Command(args[0], args[1:]...)
 		if output, err := cmd.CombinedOutput(); err != nil {
 			return fmt.Errorf("%s: %w: %s", strings.Join(args, " "), err, output)
@@ -218,8 +226,11 @@ func subnetAddressCIDR(subnet Subnet) (string, int, error) {
 // interface, since dhcpcd (which normally manages it) is disabled.
 func applyResolvConf(nameservers, search []string) error {
 	if len(nameservers) == 0 {
+		logInfo("no nameservers configured, leaving %s untouched", resolvConfPath)
 		return nil
 	}
+
+	logInfo("writing %s with nameserver(s) %v", resolvConfPath, nameservers)
 
 	var sb strings.Builder
 	if len(search) > 0 {
@@ -238,8 +249,11 @@ func applyResolvConf(nameservers, search []string) error {
 func enableService(name string) error {
 	link := runsvdirCurrent + "/" + name
 	if _, err := os.Lstat(link); err == nil {
+		logInfo("service %s already enabled", name)
 		return nil
 	}
+
+	logInfo("enabling service %s", name)
 
 	if err := os.Symlink(svDir+"/"+name, link); err != nil {
 		return fmt.Errorf("enable service %s: %w", name, err)
@@ -252,10 +266,15 @@ func enableService(name string) error {
 // mirroring `rm /etc/runit/runsvdir/current/<name>`.
 func disableService(name string) error {
 	link := runsvdirCurrent + "/" + name
-	if err := os.Remove(link); err != nil && !os.IsNotExist(err) {
+	if err := os.Remove(link); err != nil {
+		if os.IsNotExist(err) {
+			logInfo("service %s already disabled", name)
+			return nil
+		}
 		return fmt.Errorf("disable service %s: %w", name, err)
 	}
 
+	logInfo("disabling service %s", name)
 	return nil
 }
 
