@@ -5,17 +5,14 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"os/exec"
 	"strings"
-	"text/template"
 
 	"gopkg.in/yaml.v3"
 )
 
-//go:embed templates/networking/dynamic
+//go:embed templates/dhcpcd
 var dynamicNetworkTemplate string
-
-//go:embed templates/networking/static
-var staticNetworkTemplate string
 
 // svDir and runsvdirCurrent describe the runit layout void uses to
 // enable/disable services: a service is enabled by symlinking its
@@ -24,7 +21,6 @@ const (
 	svDir           = "/etc/sv"
 	runsvdirCurrent = "/etc/runit/runsvdir/current"
 	dhcpcdConfPath  = "/etc/dhcpcd.conf"
-	rcLocalPath     = "/etc/rc.local"
 	resolvConfPath  = "/etc/resolv.conf"
 )
 
@@ -52,15 +48,6 @@ type Subnet struct {
 	Gateway        string   `yaml:"gateway"`
 	DNSNameservers []string `yaml:"dns_nameservers"`
 	DNSSearch      []string `yaml:"dns_search"`
-}
-
-// staticIPTemplateData is the set of values substituted into the
-// static-ip template.
-type staticIPTemplateData struct {
-	Interface string
-	Address   string
-	CIDR      int
-	Gateway   string
 }
 
 // ParseNetworkConfig parses raw cloud-init network-config content.
@@ -111,32 +98,27 @@ func applyDynamicNetwork() error {
 	return enableService("dhcpcd")
 }
 
-// applyStaticNetwork renders /etc/rc.local for a statically addressed
-// interface and disables the dhcpcd service.
+// applyStaticNetwork brings up iface with the given static addressing via
+// `ip` and disables the dhcpcd service. void-init is expected to run out of
+// /etc/rc.local, which runit executes before any services start, so this
+// runs the same commands rc.local used to carry rather than writing them
+// out to be run later.
 func applyStaticNetwork(iface string, subnet Subnet) error {
 	cidr, err := netmaskToCIDR(subnet.Netmask)
 	if err != nil {
 		return fmt.Errorf("interface %s: %w", iface, err)
 	}
 
-	tmpl, err := template.New("static-ip").Parse(staticNetworkTemplate)
-	if err != nil {
-		return fmt.Errorf("parse static-ip template: %w", err)
+	commands := [][]string{
+		{"ip", "link", "set", "dev", iface, "up"},
+		{"ip", "addr", "add", fmt.Sprintf("%s/%d", subnet.Address, cidr), "brd", "+", "dev", iface},
+		{"ip", "route", "add", "default", "via", subnet.Gateway},
 	}
-
-	var rendered strings.Builder
-	data := staticIPTemplateData{
-		Interface: iface,
-		Address:   subnet.Address,
-		CIDR:      cidr,
-		Gateway:   subnet.Gateway,
-	}
-	if err := tmpl.Execute(&rendered, data); err != nil {
-		return fmt.Errorf("render static-ip template: %w", err)
-	}
-
-	if err := os.WriteFile(rcLocalPath, []byte(rendered.String()), 0o755); err != nil {
-		return fmt.Errorf("write %s: %w", rcLocalPath, err)
+	for _, args := range commands {
+		cmd := exec.Command(args[0], args[1:]...)
+		if output, err := cmd.CombinedOutput(); err != nil {
+			return fmt.Errorf("%s: %w: %s", strings.Join(args, " "), err, output)
+		}
 	}
 
 	if err := disableService("dhcpcd"); err != nil {

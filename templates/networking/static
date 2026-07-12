@@ -1,3 +1,0 @@
-ip link set dev {{.Interface}} up
-ip addr add {{.Address}}/{{.CIDR}} brd + dev {{.Interface}}
-ip route add default via {{.Gateway}}

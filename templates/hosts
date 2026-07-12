@@ -1,7 +1,7 @@
 # loopback addresses
-127.0.0.1	    localhost
-::1		        localhost
+127.0.0.1	        localhost
+::1		            localhost
 
 
 # static entries
-{{.Address}}	{{if .FQDN}}{{.FQDN}} {{end}}{{.Hostname}}
+{{.Address}}	    {{if .FQDN}}{{.FQDN}} {{end}}{{.Hostname}}
