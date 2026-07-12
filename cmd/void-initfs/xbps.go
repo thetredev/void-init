@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 )
@@ -133,10 +134,8 @@ func haveCachedKeys() bool {
 // there.
 func extendPath(dir string) {
 	path := os.Getenv("PATH")
-	for _, entry := range filepath.SplitList(path) {
-		if entry == dir {
-			return
-		}
+	if !slices.Contains(filepath.SplitList(path), dir) {
+		return
 	}
 	os.Setenv("PATH", path+string(os.PathListSeparator)+dir)
 }
