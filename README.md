@@ -128,8 +128,8 @@ Tests parse the fixtures in [`cmd/void-init/testfiles/`](cmd/void-init/testfiles
 
 ```sh
 # Build a new 3G qcow2 from scratch, BIOS or UEFI:
-void-initfs --bios --libc=glibc -o void.qcow2
-void-initfs --efi  --libc=musl  -o void.qcow2
+void-initfs --bios --libc=glibc -o void.qcow2 --packages vim,nano
+void-initfs --efi  --libc=musl  -o void.qcow2 -p vim,nano
 
 # Reuse an already-built image to refresh void-init/rc.local without
 # re-bootstrapping packages (layout is inferred from partition count):

@@ -1,6 +1,9 @@
 package main
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+)
 
 // repoAndArch returns the XBPS repository URL and XBPS_ARCH value for the
 // given libc variant.
@@ -16,18 +19,20 @@ func repoAndArch(libc string) (repo, arch string, err error) {
 }
 
 // packages is the package set installed into every image.
-func packages(l layout) []string {
-	common := []string{
+func packages(l layout, userPackages ...string) []string {
+	packageList := []string{
 		"base-system", "linux", "dracut", "runit-void", "dhcpcd",
 		"iproute2", "openssh", "shadow", "e2fsprogs", "dosfstools",
 		"ca-certificates", "iana-etc", "bash-completion", "net-tools",
 		"qemu-ga", "binutils", "zstd",
 	}
 
+	packageList = append(packageList, userPackages...)
+
 	if l == layoutEFI {
-		return append(common, "grub-x86_64-efi")
+		return append(packageList, "grub-x86_64-efi")
 	}
-	return append(common, "grub")
+	return append(packageList, "grub")
 }
 
 // bootstrap installs packages into root via xbps-install. There's no
@@ -40,19 +45,20 @@ func packages(l layout) []string {
 // isn't already trusted on the host, xbps-install otherwise blocks on an
 // interactive "import this public key?" prompt it can't read an answer
 // to.
-func bootstrap(root string, l layout, libc string) error {
+func bootstrap(root string, l layout, libc string, userPackages string) error {
 	repo, arch, err := repoAndArch(libc)
 	if err != nil {
 		return err
 	}
 
-	logInfo("bootstrapping %s packages (%s, %s) into %s", libc, arch, repo, root)
+	logInfo("bootstrapping %s and user packages (%s, %s) into %s", libc, arch, repo, root)
+	_userPackages := strings.Split(userPackages, ",")
 
 	args := append([]string{
 		"xbps-install", "-S", "-y",
 		"-R", repo,
 		"-r", root,
-	}, packages(l)...)
+	}, packages(l, _userPackages...)...)
 
 	_, err = runCommandEnv([]string{"XBPS_ARCH=" + arch}, args...)
 	return err

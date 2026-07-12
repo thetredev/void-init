@@ -12,6 +12,7 @@ type config struct {
 	bios                bool
 	efi                 bool
 	libc                string
+	packages            string
 	output              string
 	image               string
 	reinstallBootloader bool
@@ -28,6 +29,8 @@ func parseFlags() (*config, error) {
 	flag.BoolVar(&cfg.bios, "bios", false, "target a legacy BIOS (GPT) image")
 	flag.BoolVar(&cfg.efi, "efi", false, "target a UEFI image")
 	flag.StringVar(&cfg.libc, "libc", "glibc", `libc variant to bootstrap: "glibc" or "musl"`)
+	flag.StringVar(&cfg.packages, "p", "", "comma-separated list of packages to install into the rootfs")
+	flag.StringVar(&cfg.packages, "packages", "", "same as -p")
 	flag.StringVar(&cfg.output, "o", "", "output qcow2 path (build from scratch)")
 	flag.StringVar(&cfg.output, "output", "", "same as -o")
 	flag.StringVar(&cfg.image, "i", "", "reuse an existing qcow2 instead of building one")

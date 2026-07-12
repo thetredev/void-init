@@ -135,7 +135,7 @@ func runBuild(cfg *config, stack *cleanupStack) error {
 		return err
 	}
 
-	if err := bootstrap(target.root, l, cfg.libc); err != nil {
+	if err := bootstrap(target.root, l, cfg.libc, cfg.packages); err != nil {
 		return err
 	}
 
