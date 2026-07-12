@@ -142,6 +142,10 @@ func runBuild(cfg *config, stack *cleanupStack) error {
 		return err
 	}
 
+	if err := configureBashPrompt(target.root); err != nil {
+		return err
+	}
+
 	if err := writeFstab(target.root, l); err != nil {
 		return err
 	}
