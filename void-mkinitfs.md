@@ -106,6 +106,8 @@ qemu-nbd -c /dev/nbd0 <output>
 
 Push `qemu-nbd -d /dev/nbd0` onto the cleanup stack immediately after a successful connect. v1 hardcodes `/dev/nbd0` (single sequential run, not concurrent) and fails loudly if it's already in use rather than scanning for a free device — that's a possible future improvement, not needed now.
 
+`qemu-nbd -c`/`-d` both fork and return before the kernel has necessarily finished negotiating the device with them — `sgdisk` (step 2) can hit `/dev/nbd0` while the kernel still reports it as 0 sectors, corrupting the partition table it "creates" there. After both `-c` and `-d`, poll `/sys/class/block/nbd0/size` (0 while disconnected, nonzero once attached) until it reflects the expected state, bounded by a timeout, instead of trusting the command's exit status alone.
+
 ### 2. Partition with `sgdisk`
 
 GPT on both layouts!
@@ -178,11 +180,13 @@ Each successful mount pushes its unmount onto the cleanup stack immediately, so 
 There's no intermediate rootfs directory — `xbps-install` targets the mounted partition stack (`<tmp>`) directly with `-r`, avoiding a redundant copy/rsync pass and doubled disk usage.
 
 ```
-XBPS_ARCH=<x86_64|x86_64-musl> xbps-install -S \
+XBPS_ARCH=<x86_64|x86_64-musl> xbps-install -S -y \
   -R <repo-for-libc> \
   -r <tmp> \
   <package set>
 ```
+
+`-y` is required because `void-mkinitfs` isn't attached to a TTY: on the first fetch against a repo whose signing key isn't already trusted on the host, `xbps-install` otherwise blocks on an interactive "import this public key?" prompt it can't read an answer to.
 
 Repo/arch by `--libc`:
 - `glibc` (default): `XBPS_ARCH=x86_64`, repo `https://repo-default.voidlinux.org/current`

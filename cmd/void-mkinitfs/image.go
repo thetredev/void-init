@@ -5,12 +5,21 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
+	"strings"
+	"time"
 )
 
 // nbdDevice is the network block device void-mkinitfs attaches images to.
 // v1 hardcodes a single device rather than scanning for a free one, since
 // void-mkinitfs is meant to run one build at a time.
 const nbdDevice = "/dev/nbd0"
+
+// nbdPollInterval/nbdPollTimeout bound waitForNBDSize's polling loop.
+const (
+	nbdPollInterval = 100 * time.Millisecond
+	nbdPollTimeout  = 5 * time.Second
+)
 
 // layout identifies which of the two partition schemes an image uses, per
 // void-mkinitfs.md step 2.
@@ -56,6 +65,14 @@ func attachImage(path string) error {
 		return err
 	}
 
+	// qemu-nbd -c forks its serving process and returns before the kernel
+	// has necessarily finished negotiating the device size with it -
+	// sgdisk (step 2) can otherwise see a device that briefly reports 0
+	// sectors and corrupt the partition table it "creates" there.
+	if err := waitForNBDSize(func(sectors uint64) bool { return sectors > 0 }); err != nil {
+		return fmt.Errorf("wait for %s to attach: %w", nbdDevice, err)
+	}
+
 	return nil
 }
 
@@ -66,6 +83,42 @@ func detachImage() {
 	logInfo("detaching %s", nbdDevice)
 	if _, err := runCommand("qemu-nbd", "-d", nbdDevice); err != nil {
 		logWarn("%v", err)
+		return
+	}
+
+	// Symmetric with the attach-side wait: qemu-nbd -d can return before
+	// the kernel has released the device, which matters because nbdDevice
+	// is a single hardcoded device - a build started right after this one
+	// exits could otherwise see it as still in use.
+	if err := waitForNBDSize(func(sectors uint64) bool { return sectors == 0 }); err != nil {
+		logWarn("%v", err)
+	}
+}
+
+// nbdSizeSysfsPath is where the kernel exposes nbdDevice's current size in
+// 512-byte sectors - 0 while disconnected, and briefly still 0 right after
+// qemu-nbd -c returns until the size handshake completes.
+func nbdSizeSysfsPath() string {
+	return filepath.Join("/sys/class/block", filepath.Base(nbdDevice), "size")
+}
+
+// waitForNBDSize polls nbdSizeSysfsPath until ready reports true for the
+// current sector count, or returns an error after nbdPollTimeout elapses.
+func waitForNBDSize(ready func(sectors uint64) bool) error {
+	deadline := time.Now().Add(nbdPollTimeout)
+
+	for {
+		data, err := os.ReadFile(nbdSizeSysfsPath())
+		if err == nil {
+			if sectors, perr := strconv.ParseUint(strings.TrimSpace(string(data)), 10, 64); perr == nil && ready(sectors) {
+				return nil
+			}
+		}
+
+		if time.Now().After(deadline) {
+			return fmt.Errorf("timed out waiting for %s to settle", nbdDevice)
+		}
+		time.Sleep(nbdPollInterval)
 	}
 }
 
