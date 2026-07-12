@@ -51,8 +51,3 @@ func main() {
 
 	logInfo("finished successfully")
 }
-
-// TODO:
-// 2) provide an option to generate a bootable, cloud-init ready voidlinux rootfs from scratch*
-
-// * that rootfs shall have the current release of void-init installed as well, of course
