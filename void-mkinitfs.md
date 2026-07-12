@@ -292,12 +292,19 @@ systemd-nspawn -D <tmp> --bind=/dev/nbd0 --bind=/dev/nbd0p1 --bind=/dev/nbd0p2 -
 
 `--removable` on the EFI install writes the fallback `\EFI\BOOT\BOOTX64.EFI` path instead of registering an NVRAM boot entry via `efibootmgr` — this image isn't running on real firmware at build time, so there's no NVRAM to register against; `--removable` is what makes it bootable "as-is" once attached to a VM.
 
-Then, a follow-up nspawn invocation with the *same* bind mounts as above — `grub-mkconfig` also runs `grub-probe`, this time against `/` (`/dev/nbd0p3` on `--bios`), so it needs the partition nodes visible too, not just the first invocation:
+Then, a follow-up nspawn invocation with the *same* bind mounts as above — `grub-mkconfig` also runs `grub-probe`, this time against `/` (`/dev/nbd0p3` on `--bios`), so it needs the partition nodes visible too, not just the first invocation.
+
+This second invocation needs one more thing first: `grub-mkconfig`'s `10_linux` script only emits `root=UUID=...` (and the matching `search --fs-uuid` for `/boot`) if `/dev/disk/by-uuid/<uuid>` exists for that partition — otherwise it silently falls back to the raw device path it just resolved, e.g. `root=/dev/nbd0p3`. That symlink is normally created by udev reacting to the block device's uevent, but nothing runs udev inside nspawn's private `/dev` for the bound partition nodes, so the symlink never appears there on its own. Left unfixed, this produces a `grub.cfg` that boots fine on the build host's nbd device and hangs at a `dracut:/#` emergency shell (`dracut Warning: "/dev/nbd0p3" does not exist`) on the actual VM, since that device name is meaningless outside the build. The fix: recreate the `by-uuid` symlinks for the boot and root partitions inside the same nspawn invocation, immediately before running `grub-mkconfig`:
 
 ```
 systemd-nspawn -D <tmp> --bind=/dev/nbd0 --bind=/dev/nbd0p1 --bind=/dev/nbd0p2 --bind=/dev/nbd0p3 -- \
-  grub-mkconfig -o /boot/grub/grub.cfg
+  sh -c 'mkdir -p /dev/disk/by-uuid \
+    && ln -sf ../../nbd0p2 /dev/disk/by-uuid/<boot-uuid> \
+    && ln -sf ../../nbd0p3 /dev/disk/by-uuid/<root-uuid> \
+    && grub-mkconfig -o /boot/grub/grub.cfg'
 ```
+
+(`<boot-uuid>`/`<root-uuid>` come from `blkid -s UUID -o value`, the same lookup `writeFstab` already does for `/etc/fstab` — see `bootloader.go`'s `grubMkconfigCommand`/`byUUIDSymlink`.)
 
 ### 10. `-i <qcow2 path>`: reuse an existing image instead of building a new one
 

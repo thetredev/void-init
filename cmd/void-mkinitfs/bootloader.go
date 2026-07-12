@@ -1,6 +1,10 @@
 package main
 
-import "fmt"
+import (
+	"fmt"
+	"path/filepath"
+	"strings"
+)
 
 // installBootloader installs GRUB into root and generates its config, per
 // void-mkinitfs.md step 9. grub-install/grub-probe need to see the real
@@ -37,5 +41,41 @@ func installBootloader(root string, l layout) error {
 		return err
 	}
 
-	return nspawn(root, bind, "grub-mkconfig", "-o", "/boot/grub/grub.cfg")
+	mkconfig, err := grubMkconfigCommand(l)
+	if err != nil {
+		return err
+	}
+	return nspawn(root, bind, mkconfig...)
+}
+
+// grubMkconfigCommand builds the shell command grub-mkconfig runs under,
+// prefixed with commands that recreate udev's /dev/disk/by-uuid symlinks
+// for the boot and root partitions. grub-mkconfig's 10_linux script only
+// emits "root=UUID=..." (and the matching search command for /boot) if
+// that symlink exists; otherwise it silently falls back to the raw device
+// path it resolved at generation time. systemd-nspawn's private /dev never
+// gets those symlinks on its own - nothing runs udev inside it for the
+// bound partition nodes - so without this, the generated grub.cfg
+// hardcodes something like root=/dev/nbd0p3: a device name that only
+// exists on the build host and is meaningless inside the booted VM,
+// leaving dracut unable to find the root filesystem at boot.
+func grubMkconfigCommand(l layout) ([]string, error) {
+	commands := []string{"mkdir -p /dev/disk/by-uuid"}
+
+	for _, dev := range []string{bootPartitionDevice(l), rootPartitionDevice(l)} {
+		uuid, err := partitionUUID(dev)
+		if err != nil {
+			return nil, err
+		}
+		commands = append(commands, byUUIDSymlink(dev, uuid))
+	}
+
+	commands = append(commands, "grub-mkconfig -o /boot/grub/grub.cfg")
+	return []string{"sh", "-c", strings.Join(commands, " && ")}, nil
+}
+
+// byUUIDSymlink formats the shell command to recreate udev's
+// /dev/disk/by-uuid symlink for a partition device node.
+func byUUIDSymlink(dev, uuid string) string {
+	return fmt.Sprintf("ln -sf ../../%s /dev/disk/by-uuid/%s", filepath.Base(dev), uuid)
 }
