@@ -7,8 +7,7 @@ import (
 	"strings"
 )
 
-// config holds void-mkinitfs's parsed and validated CLI flags, per
-// void-mkinitfs.md's "CLI" section.
+// config holds void-mkinitfs's parsed and validated CLI flags.
 type config struct {
 	bios                bool
 	efi                 bool
@@ -82,9 +81,9 @@ func (c *config) checkSwallowedValues() error {
 	return nil
 }
 
-// validate enforces the flag combinations described in void-mkinitfs.md's
-// "CLI" section: --bios/--efi are mutually exclusive and, when not using
-// -i, exactly one is required; -i and -o are mutually exclusive;
+// validate enforces the CLI's flag combinations: --bios/--efi are
+// mutually exclusive and, when not using -i, exactly one is required;
+// -i and -o are mutually exclusive;
 // --reinstall-bootloader/--update-xbps/-f/--force only make sense
 // alongside -o (the from-scratch path). With -f, an existing -o target is
 // allowed to pass validation, but isn't removed here - that happens later

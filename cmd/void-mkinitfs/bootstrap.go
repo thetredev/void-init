@@ -3,7 +3,7 @@ package main
 import "fmt"
 
 // repoAndArch returns the XBPS repository URL and XBPS_ARCH value for the
-// given libc variant, per void-mkinitfs.md step 5.
+// given libc variant.
 func repoAndArch(libc string) (repo, arch string, err error) {
 	switch libc {
 	case "glibc":
@@ -15,9 +15,7 @@ func repoAndArch(libc string) (repo, arch string, err error) {
 	}
 }
 
-// packages is the proposed package set from void-mkinitfs.md step 5.
-// Exact names should be verified against the live repo (xbps-query -R)
-// before relying on this list - see the plan's "Open items" section.
+// packages is the package set installed into every image.
 func packages(l layout) []string {
 	common := []string{
 		"base-system", "linux", "dracut", "runit-void", "dhcpcd",
@@ -32,12 +30,12 @@ func packages(l layout) []string {
 	return append(common, "grub")
 }
 
-// bootstrap installs packages into root via xbps-install, per
-// void-mkinitfs.md step 5. There's no intermediate rootfs directory:
-// xbps-install targets the mounted partition stack directly, since
-// xbps-install -r with a foreign root just unpacks package files - it
-// doesn't run pre/post install scriptlets, which is the gap reconfigure
-// (step 6) fills afterward. -y is required since void-mkinitfs isn't
+// bootstrap installs packages into root via xbps-install. There's no
+// intermediate rootfs directory: xbps-install targets the mounted
+// partition stack directly, since xbps-install -r with a foreign root
+// just unpacks package files - it doesn't run pre/post install
+// scriptlets, which is the gap reconfigure (see nspawn.go) fills
+// afterward. -y is required since void-mkinitfs isn't
 // attached to a TTY: on the first fetch against a repo whose signing key
 // isn't already trusted on the host, xbps-install otherwise blocks on an
 // interactive "import this public key?" prompt it can't read an answer

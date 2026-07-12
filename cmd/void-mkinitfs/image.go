@@ -21,8 +21,7 @@ const (
 	nbdPollTimeout  = 5 * time.Second
 )
 
-// layout identifies which of the two partition schemes an image uses, per
-// void-mkinitfs.md step 2.
+// layout identifies which of the two partition schemes an image uses.
 type layout int
 
 const (
@@ -132,7 +131,7 @@ func waitForNBDSize(ready func(sectors uint64) bool) error {
 }
 
 // partitionSpec is one sgdisk partition definition: -n/-t/-c combined
-// into a single invocation, mirroring void-mkinitfs.md step 2.
+// into a single invocation.
 type partitionSpec struct {
 	num  int
 	size string // sgdisk end-of-partition spec, e.g. "+1M", or "0" for the rest of the disk
@@ -221,8 +220,9 @@ func partition(l layout) error {
 	return nil
 }
 
-// makeFilesystems formats every partition in l's layout with the
-// filesystem described in void-mkinitfs.md step 3.
+// makeFilesystems formats every partition in l's layout with its
+// designated filesystem (vfat for the EFI System Partition, ext2 for
+// /boot, ext4 for /).
 func makeFilesystems(l layout) error {
 	if l == layoutEFI {
 		if _, err := runCommand("mkfs.vfat", "-F32", "-n", "EFI", efiPartitionDevice()); err != nil {
@@ -305,9 +305,9 @@ func mountAt(dev, dir string, stack *cleanupStack) error {
 
 // detectLayout infers whether the image already attached at nbdDevice
 // uses the BIOS (3-partition) or EFI (4-partition) layout by counting the
-// partition device nodes the kernel exposes, per void-mkinitfs.md step
-// 10. It does not otherwise validate partition types, filesystem types,
-// or sizes - pointing -i at an image with some other 3- or 4-partition
+// partition device nodes the kernel exposes. It does not otherwise
+// validate partition types, filesystem types, or sizes - pointing -i
+// at an image with some other 3- or 4-partition
 // scheme will mount the wrong partition at the wrong path silently.
 func detectLayout() (layout, error) {
 	if _, err := runCommand("partprobe", nbdDevice); err != nil {

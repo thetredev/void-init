@@ -29,9 +29,9 @@ func fatal(err error) {
 	os.Exit(1)
 }
 
-// run executes the pipeline described in void-mkinitfs.md, either
-// building a fresh image (cfg.output) or reusing an existing one
-// (cfg.image, step 10).
+// run executes the build-or-reuse pipeline: either building a fresh
+// image from scratch (cfg.output) or reusing an existing one
+// (cfg.image).
 func run(cfg *config) error {
 	stack := &cleanupStack{}
 	defer stack.unwind()
@@ -61,9 +61,9 @@ func run(cfg *config) error {
 	return runBuild(cfg, stack)
 }
 
-// runReuse implements void-mkinitfs.md step 10: attach an existing image,
-// infer its layout from partition count, mount it, and refresh void-init
-// (and, if requested, the bootloader) without rebuilding the rootfs.
+// runReuse attaches an existing image, infers its layout from partition
+// count, mounts it, and refreshes void-init (and, if requested, the
+// bootloader) without rebuilding the rootfs.
 func runReuse(cfg *config, stack *cleanupStack) error {
 	logInfo("reusing existing image %s", cfg.image)
 
@@ -101,8 +101,8 @@ func runReuse(cfg *config, stack *cleanupStack) error {
 	return nil
 }
 
-// runBuild implements void-mkinitfs.md steps 1-9: build a bootable,
-// cloud-init-ready Void Linux qcow2 image from scratch.
+// runBuild builds a bootable, cloud-init-ready Void Linux qcow2 image
+// from scratch.
 func runBuild(cfg *config, stack *cleanupStack) error {
 	l, _ := cfg.requestedLayout()
 

@@ -8,7 +8,7 @@ import (
 
 // rcLocal is the /etc/rc.local void-mkinitfs writes into every image.
 // void-init does the rest of the work itself at first boot - there's no
-// mirroring of that boot-time logic here, per void-mkinitfs.md step 8.
+// mirroring of that boot-time logic here.
 const rcLocal = "#!/bin/sh\n/usr/local/bin/void-init\n"
 
 // installVoidInit copies the void-init binary at voidInitPath into root's

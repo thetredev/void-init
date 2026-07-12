@@ -6,9 +6,9 @@ import (
 	"strings"
 )
 
-// installBootloader installs GRUB into root and generates its config, per
-// void-mkinitfs.md step 9. grub-install/grub-probe need to see the real
-// block device to write the boot sector / determine the device map,
+// installBootloader installs GRUB into root and generates its config.
+// grub-install/grub-probe need to see the real block device to write
+// the boot sector / determine the device map,
 // which nspawn's private /dev doesn't include by default, hence the
 // explicit bind mounts - of both nbdDevice itself and every partition
 // node. grub-probe canonicalizes whatever device backs the mount it's

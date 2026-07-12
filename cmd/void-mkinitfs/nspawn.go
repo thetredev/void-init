@@ -17,10 +17,10 @@ func nspawn(root string, extraArgs []string, command ...string) error {
 }
 
 // reconfigure runs xbps-reconfigure -fa inside root to execute every
-// package trigger XBPS deferred during bootstrap (step 5) - initramfs
+// package trigger XBPS deferred during bootstrap - initramfs
 // generation via dracut, shadow's user/group setup, locale generation,
 // ca-certificates bundling, etc. - since the install target wasn't the
-// host's actual "/". Per void-mkinitfs.md step 6.
+// host's actual "/".
 func reconfigure(root string) error {
 	logInfo("reconfiguring packages in %s", root)
 	return nspawn(root, []string{"--resolv-conf=bind-host"}, "xbps-reconfigure", "-fa")

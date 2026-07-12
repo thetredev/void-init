@@ -46,8 +46,8 @@ const localBinDir = "/usr/local/bin"
 
 // localKeysDir caches the repository signing keys extracted from Void's
 // static xbps tarball, so installRepoKeys (keys.go, run against every
-// freshly created rootdir - void-mkinitfs.md step 5) doesn't have to hit
-// the network on every single build. Only ensureXbps, when it downloads a
+// freshly created rootdir) doesn't have to hit the network on every
+// single build. Only ensureXbps, when it downloads a
 // (checksum-verified) copy of the tarball, refreshes this cache - there
 // is deliberately no hardcoded/embedded key shipped with void-mkinitfs
 // itself: whatever keys the live tarball bundles are what gets trusted.

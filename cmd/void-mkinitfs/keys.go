@@ -7,8 +7,8 @@ import (
 )
 
 // installRepoKeys pre-seeds root's XBPS key store with Void's repository
-// signing keys, per void-mkinitfs.md step 5. xbps-install's key trust is
-// scoped per-rootdir rather than host-global, and root here is always a
+// signing keys. xbps-install's key trust is scoped per-rootdir rather
+// than host-global, and root here is always a
 // freshly created rootdir that has never trusted anything - without this,
 // xbps-install stops on an interactive "import this public key?" prompt
 // it can't read an answer to (void-mkinitfs isn't attached to a TTY),

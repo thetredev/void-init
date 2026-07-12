@@ -28,7 +28,7 @@ func partitionUUID(dev string) (string, error) {
 }
 
 // writeFstab renders /etc/fstab into root, listing every partition in l's
-// layout by UUID, per void-mkinitfs.md step 7.
+// layout by UUID.
 func writeFstab(root string, l layout) error {
 	rootUUID, err := partitionUUID(rootPartitionDevice(l))
 	if err != nil {

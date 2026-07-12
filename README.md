@@ -140,11 +140,11 @@ void-mkinitfs -i void.qcow2
 void-mkinitfs --bios -o void.qcow2 -f -y
 ```
 
-Full design/implementation details - partition layout, package set, the `xbps-install`/`systemd-nspawn` pipeline, cleanup/error-handling strategy - live in [`void-mkinitfs.md`](void-mkinitfs.md).
+Full design/implementation details - partition layout, package set, the `xbps-install`/`systemd-nspawn` pipeline, cleanup/error-handling strategy - live in the source under [`cmd/void-mkinitfs/`](cmd/void-mkinitfs), particularly the doc comments in `image.go` (partitioning/mounting), `bootstrap.go` (package set), `xbps.go` (repo keys/static tool bootstrap), and `cleanup.go` (the LIFO cleanup stack).
 
 Requires `xbps-install`, `xbps-reconfigure`, `systemd-nspawn`, `qemu-img`, `qemu-nbd`, `sgdisk`, `mkfs.vfat`, `mkfs.ext2`, `mkfs.ext4`, `partprobe`, `udevadm`, `blkid`, `grub-install`, and `grub-mkconfig` on `PATH`; run as root. If `xbps-install`/`xbps-reconfigure` or Void's repository signing keys aren't found locally, `void-mkinitfs` offers to download and checksum-verify them from Void's live static archive into `/usr/local/bin`/`/usr/local/share/void-mkinitfs/keys` (`-y`/`--yes` skips the confirmation, `--update-xbps` forces a refresh).
 
 ## Known limitations / TODO
 
 - Only the NoCloud datasource (CD-ROM device glob `/dev/sr*`) is supported - no HTTP/config-drive/other datasources.
-- `void-mkinitfs` targets x86_64 only (no cross-compilation), qcow2 output only, and requires a `systemd`-based host (no plain-chroot fallback for non-`systemd` hosts yet) - see `void-mkinitfs.md`'s "Explicitly out of scope" section.
+- `void-mkinitfs` targets x86_64 only (no cross-compilation), qcow2 output only, and requires a `systemd`-based host (no plain-chroot fallback for non-`systemd` hosts yet)
