@@ -85,9 +85,10 @@ func runReuse(cfg *config, stack *cleanupStack) error {
 		return err
 	}
 
-	if err := installVoidInit(target.root, cfg.voidInitBinary); err != nil {
+	if err := installBinaries(target.root, cfg.binaryPath); err != nil {
 		return err
 	}
+
 	if err := enableSSHService(target.root); err != nil {
 		return err
 	}
@@ -154,9 +155,10 @@ func runBuild(cfg *config, stack *cleanupStack) error {
 		return err
 	}
 
-	if err := installVoidInit(target.root, cfg.voidInitBinary); err != nil {
+	if err := installBinaries(target.root, cfg.binaryPath); err != nil {
 		return err
 	}
+
 	if err := enableSSHService(target.root); err != nil {
 		return err
 	}

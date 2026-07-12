@@ -94,7 +94,7 @@ func TestParseFlagsErrors(t *testing.T) {
 		},
 		{
 			name:    "flag value swallowed by preceding string flag",
-			args:    []string{"--bios", "-o", "out.qcow2", "--void-init-binary", "-y"},
+			args:    []string{"--bios", "-o", "out.qcow2", "--binary-path", "-y"},
 			wantErr: "looks like a flag rather than a value",
 		},
 	}
@@ -229,10 +229,10 @@ func TestParseFlagsOrderIndependent(t *testing.T) {
 	binary := filepath.Join(t.TempDir(), "void-init")
 
 	orderings := [][]string{
-		{"--bios", "-o", out, "-y", "--void-init-binary", binary, "--update-xbps"},
-		{"-y", "--update-xbps", "--void-init-binary", binary, "--bios", "-o", out},
-		{"--void-init-binary", binary, "-o", out, "--update-xbps", "-y", "--bios"},
-		{"--update-xbps", "--bios", "-y", "-o", out, "--void-init-binary", binary},
+		{"--bios", "-o", out, "-y", "--binary-path", binary, "--update-xbps"},
+		{"-y", "--update-xbps", "--binary-path", binary, "--bios", "-o", out},
+		{"--binary-path", binary, "-o", out, "--update-xbps", "-y", "--bios"},
+		{"--update-xbps", "--bios", "-y", "-o", out, "--binary-path", binary},
 	}
 
 	var want *config

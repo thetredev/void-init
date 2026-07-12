@@ -15,7 +15,7 @@ type config struct {
 	output              string
 	image               string
 	reinstallBootloader bool
-	voidInitBinary      string
+	binaryPath          string
 	updateXbps          bool
 	assumeYes           bool
 	force               bool
@@ -33,7 +33,7 @@ func parseFlags() (*config, error) {
 	flag.StringVar(&cfg.image, "i", "", "reuse an existing qcow2 instead of building one")
 	flag.StringVar(&cfg.image, "image", "", "same as -i")
 	flag.BoolVar(&cfg.reinstallBootloader, "reinstall-bootloader", false, "with -i, also reinstall the bootloader (step 9)")
-	flag.StringVar(&cfg.voidInitBinary, "void-init-binary", "void-init", "path to a built void-init binary to install into the image")
+	flag.StringVar(&cfg.binaryPath, "binary-path", ".", "path where built void-init binary and void-initfs binaries are found to install into the image")
 	flag.BoolVar(&cfg.updateXbps, "update-xbps", false, "force a re-download/re-verify of the cached xbps tools and repository keys from Void's static archive")
 	flag.BoolVar(&cfg.assumeYes, "y", false, "assume yes to the xbps tools/keys download confirmation")
 	flag.BoolVar(&cfg.assumeYes, "yes", false, "same as -y")
@@ -71,7 +71,7 @@ func (c *config) checkSwallowedValues() error {
 		{"-o/--output", c.output},
 		{"-i/--image", c.image},
 		{"--libc", c.libc},
-		{"--void-init-binary", c.voidInitBinary},
+		{"--binary-path", c.binaryPath},
 	}
 	for _, s := range suspects {
 		if strings.HasPrefix(s.val, "-") {

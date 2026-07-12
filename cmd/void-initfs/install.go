@@ -11,16 +11,23 @@ import (
 // mirroring of that boot-time logic here.
 const rcLocal = "#!/bin/sh\n/usr/local/bin/void-init\n"
 
-// installVoidInit copies the void-init binary at voidInitPath into root's
-// /usr/local/bin and wires up /etc/rc.local to run it. sshd (already
+// installBinaries copies the void-init and void-initfs binaries at binaryPath
+// into root's /usr/local/bin and wires up /etc/rc.local to run it. sshd (already
 // installed) generates its own host keys on first start via its own
 // runit service - void-initfs does nothing SSH-key-related.
-func installVoidInit(root, voidInitPath string) error {
-	dst := filepath.Join(root, "usr", "local", "bin", "void-init")
+func installBinaries(root, binaryPath string) error {
+	dst := filepath.Join(root, "usr", "local", "bin")
 
-	logInfo("installing void-init binary to %s", dst)
-	if err := copyFile(voidInitPath, dst, 0o755); err != nil {
-		return err
+	logInfo("installing void-init and void-initfs binaries to %s", dst)
+
+	binaries := []string{"void-init", "void-initfs"}
+	for _, binary := range binaries {
+		source := fmt.Sprintf("%s/%s", binaryPath, binary)
+		destination := fmt.Sprintf("%s/%s", dst, binary)
+
+		if err := copyFile(source, destination, 0o755); err != nil {
+			return err
+		}
 	}
 
 	rcLocalPath := filepath.Join(root, "etc", "rc.local")
