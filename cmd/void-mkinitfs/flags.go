@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"strings"
 )
 
 // config holds void-mkinitfs's parsed and validated CLI flags, per
@@ -42,11 +43,43 @@ func parseFlags() (*config, error) {
 
 	flag.Parse()
 
+	if flag.NArg() > 0 {
+		return nil, fmt.Errorf("unexpected argument(s): %v (every flag's value must immediately follow it)", flag.Args())
+	}
+	if err := cfg.checkSwallowedValues(); err != nil {
+		return nil, err
+	}
 	if err := cfg.validate(); err != nil {
 		return nil, err
 	}
 
 	return cfg, nil
+}
+
+// checkSwallowedValues guards against flag ordering silently changing
+// behavior. The standard flag package's grammar has a footgun: a
+// string flag like --void-init-binary always consumes the very next
+// argument as its value, even if that argument was meant to be a
+// separate flag - e.g. "--void-init-binary -y" sets voidInitBinary to
+// the literal string "-y" instead of also setting assumeYes, with no
+// error. None of this CLI's string-flag values are ever legitimately
+// expected to start with "-", so one that does is almost certainly a
+// flag that got swallowed as somebody else's value because of where it
+// was placed on the command line - fail loudly instead of silently
+// misbehaving differently depending on argument order.
+func (c *config) checkSwallowedValues() error {
+	suspects := []struct{ name, val string }{
+		{"-o/--output", c.output},
+		{"-i/--image", c.image},
+		{"--libc", c.libc},
+		{"--void-init-binary", c.voidInitBinary},
+	}
+	for _, s := range suspects {
+		if strings.HasPrefix(s.val, "-") {
+			return fmt.Errorf("%s got %q, which looks like a flag rather than a value - check that a value immediately follows %s", s.name, s.val, s.name)
+		}
+	}
+	return nil
 }
 
 // validate enforces the flag combinations described in void-mkinitfs.md's
