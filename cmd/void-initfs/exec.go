@@ -19,7 +19,7 @@ func runCommand(args ...string) ([]byte, error) {
 
 // runCommandEnv is runCommand with extra environment variables appended to
 // the child's environment (on top of the current process's own). Stdout
-// and stderr are streamed to void-mkinitfs's own stdout/stderr live, the
+// and stderr are streamed to void-initfs's own stdout/stderr live, the
 // same way they'd appear running the command by hand - important for
 // long-running, chatty commands like xbps-install, whose progress output
 // would otherwise be invisible until the command finished (or silently

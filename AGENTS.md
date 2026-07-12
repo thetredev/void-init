@@ -13,13 +13,13 @@ NoCloud cloud-init ISO (`user-data` + optional `network-config`) off `/dev/sr*`,
 hostname, user password hash, SSH authorized keys, network interface configuration (DHCP/SLAAC via
 `dhcpcd`, static via `ip` directly), `/etc/resolv.conf`, and `/etc/hosts`.
 
-There is a second binary, `void-mkinitfs`, which builds a bootable, cloud-init-ready Void Linux
+There is a second binary, `void-initfs`, which builds a bootable, cloud-init-ready Void Linux
 qcow2 disk image from scratch (with `void-init` pre-baked in and `/etc/rc.local` wired up), so a VM
 can be provisioned from that image and self-configure on first boot via `void-init`. It is fully
 implemented (both BIOS and EFI layouts build and boot). Its design lives in the doc comments under
-`cmd/void-mkinitfs/` — there is no separate planning document; a `void-mkinitfs.md` design doc
+`cmd/void-initfs/` — there is no separate planning document; a `void-initfs.md` design doc
 existed during initial development but was deliberately deleted once the implementation caught up
-with it (see git history for `void-mkinitfs.md` if you need the original design rationale).
+with it (see git history for `void-initfs.md` if you need the original design rationale).
 
 ## Repo layout
 
@@ -42,7 +42,7 @@ A `cmd/` layout with two binaries sharing `internal/vlog` as their only common c
 | `testfiles/` | Sample `user-data`/`network-config` fixtures — both documentation of the supported format and test fixtures. |
 | `*_test.go` | `network_test.go`, `userdata_test.go` — parse the `testfiles/` fixtures, exercise pure logic (`subnetAddressCIDR`). |
 
-**`cmd/void-mkinitfs/`** — the host-side image-build tool; see the "`void-mkinitfs`" section below
+**`cmd/void-initfs/`** — the host-side image-build tool; see the "`void-initfs`" section below
 for its architecture. **`internal/vlog/`** — the shared logger; see Logging below.
 
 Only external dependency: `gopkg.in/yaml.v3`. Go version: 1.26.5 (see `go.mod`). Module:
@@ -65,7 +65,7 @@ Run all of these after any change before considering it done.
 
 ## Core conventions — preserve these when adding code
 
-These describe `cmd/void-init/`; `cmd/void-mkinitfs/` follows an analogous discipline (every
+These describe `cmd/void-init/`; `cmd/void-initfs/` follows an analogous discipline (every
 external command logged before it runs via `runCommand`/`runCommandEnv` in `exec.go`, the same
 error-wrapping style, no speculative abstraction) but writes to a build host rather than a live
 system, so the managed-file pattern doesn't apply to it.
@@ -110,7 +110,7 @@ Each binary parameterizes `vlog.New(program, logPath)` differently:
   be opened; a missing log file is never fatal). That file is rotated by `internal/vlog/rotate.go`
   once it reaches 50 MiB, keeping up to 5 rotated backups (`void-init.log.1` .. `void-init.log.5`,
   oldest evicted first).
-- `void-mkinitfs` (`cmd/void-mkinitfs/log.go`) passes `""` — **stderr-only**, since it's an
+- `void-initfs` (`cmd/void-initfs/log.go`) passes `""` — **stderr-only**, since it's an
   interactive build tool run on the host machine, not a boot-time record; a log file on the
   *build host* wouldn't mean anything.
 
@@ -132,7 +132,7 @@ boot.
   unpacks package files), but package pre/post-install trigger scripts (locale generation, initramfs
   builds via `dracut`, `shadow`'s user/group setup, etc.) are deferred when the target root isn't
   the host's actual `/`, and must be run afterward via `xbps-reconfigure -fa` inside something that
-  furnishes a proper `/proc`/`/sys`/`/dev` — see `cmd/void-mkinitfs/nspawn.go`'s `reconfigure` for
+  furnishes a proper `/proc`/`/sys`/`/dev` — see `cmd/void-initfs/nspawn.go`'s `reconfigure` for
   why `systemd-nspawn` (no `--boot`) is used for that instead of a hand-rolled chroot.
 - No syslog daemon by default; `socklog` is the optional lightweight one if a user wants one, but
   it's not assumed to exist.
@@ -158,22 +158,22 @@ Cloud-Init GUI page exposes, not the full cloud-init spec):
   file (`user-data` or `network-config`).
 
 **Testing philosophy:** only pure logic gets automated tests — YAML parsing against the
-`testfiles/` fixtures, `subnetAddressCIDR`'s address/CIDR math, and, in `cmd/void-mkinitfs/`,
+`testfiles/` fixtures, `subnetAddressCIDR`'s address/CIDR math, and, in `cmd/void-initfs/`,
 CLI flag validation (`flags_test.go`) and pure helpers like `byUUIDSymlink` (`bootloader_test.go`).
 Anything that touches the live system (mounting devices, running `ip`/`chpasswd`/`sgdisk`, writing
 to `/etc`, `qemu-nbd`/`systemd-nspawn` invocations) is *not* unit tested; it's meant to be
 exercised on an actual VM/host.
 
-## `void-mkinitfs`
+## `void-initfs`
 
-High-level facts an agent needs before touching `cmd/void-mkinitfs/`. It's fully implemented — this
+High-level facts an agent needs before touching `cmd/void-initfs/`. It's fully implemented — this
 is a description of what's there, not a plan for what to build:
 
 - **Host requirement:** a `systemd`-based host with `systemd-nspawn` available (used without
   `--boot` — single-command execution with an auto-provisioned private `/proc`/`/sys`/`/dev`/`/run`,
   not a full container boot). x86_64 only, no cross-compilation, output is always a 3G qcow2.
-- **CLI:** `void-mkinitfs --bios|--efi --libc=glibc|musl -o <out.qcow2>` to build from scratch, or
-  `void-mkinitfs -i <existing.qcow2>` to reuse an already-bootstrapped image (layout inferred from
+- **CLI:** `void-initfs --bios|--efi --libc=glibc|musl -o <out.qcow2>` to build from scratch, or
+  `void-initfs -i <existing.qcow2>` to reuse an already-bootstrapped image (layout inferred from
   partition count: 3 → BIOS, 4 → EFI; `--bios`/`--efi` becomes an optional sanity check instead of
   required in that mode).
 - **Disk-first architecture:** the qcow2 is created, partitioned, and formatted *before* any
@@ -188,7 +188,7 @@ is a description of what's there, not a plan for what to build:
   followed by `systemd-nspawn -D <root> --resolv-conf=bind-host -- xbps-reconfigure -fa`.
 - **`void-init` installation is NOT a mirror of its own boot-time logic** — just `cp` the binary
   to `/usr/local/bin/void-init` in the image and write a two-line `/etc/rc.local` that calls it.
-  `sshd` generates its own host keys on first start; `void-mkinitfs` does nothing SSH-key-related.
+  `sshd` generates its own host keys on first start; `void-initfs` does nothing SSH-key-related.
   Only `sshd` gets enabled in the image's runsvdir — `dhcpcd` is deliberately left disabled, since
   `void-init` itself decides DHCP vs. static (and enables/disables `dhcpcd` accordingly) at first
   real boot.
@@ -220,6 +220,6 @@ is a description of what's there, not a plan for what to build:
 ## Documents in this repo and their role
 
 - `README.md` — user-facing description of both shipped binaries (`void-init` and
-  `void-mkinitfs`).
+  `void-initfs`).
 - `AGENTS.md` (this file) / `CLAUDE.md` — agent operating context, not user-facing; not meant to
   be linked from the README.

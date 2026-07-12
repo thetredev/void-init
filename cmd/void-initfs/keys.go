@@ -11,7 +11,7 @@ import (
 // than host-global, and root here is always a
 // freshly created rootdir that has never trusted anything - without this,
 // xbps-install stops on an interactive "import this public key?" prompt
-// it can't read an answer to (void-mkinitfs isn't attached to a TTY),
+// it can't read an answer to (void-initfs isn't attached to a TTY),
 // even with -y. Real Void hosts don't hit this because their host-wide
 // /var/db/xbps/keys/ was seeded once, long ago; void-installer sidesteps
 // the same problem by copying the host's trusted keys into its target

@@ -18,11 +18,11 @@ import (
 func resetFlags(t *testing.T, args ...string) {
 	t.Helper()
 
-	fs := flag.NewFlagSet("void-mkinitfs", flag.ContinueOnError)
+	fs := flag.NewFlagSet("void-initfs", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
 	flag.CommandLine = fs
 
-	os.Args = append([]string{"void-mkinitfs"}, args...)
+	os.Args = append([]string{"void-initfs"}, args...)
 }
 
 func TestParseFlagsErrors(t *testing.T) {

@@ -49,7 +49,7 @@ Since void-init runs from `/etc/rc.local`, before any syslog daemon (e.g. `sockl
 go build ./...
 ```
 
-This produces both a `void-init` and a `void-mkinitfs` binary (see `.gitignore` and [void-mkinitfs](#void-mkinitfs) below) at the repo root, using the templates embedded at build time via `go:embed` (see [Templates](#templates)). To build just `void-init`: `go build ./cmd/void-init`.
+This produces both a `void-init` and a `void-initfs` binary (see `.gitignore` and [void-initfs](#void-initfs) below) at the repo root, using the templates embedded at build time via `go:embed` (see [Templates](#templates)). To build just `void-init`: `go build ./cmd/void-init`.
 
 ## Code layout
 
@@ -68,7 +68,7 @@ The module builds two binaries from a `cmd/` layout, sharing `internal/vlog` (se
 | [`internal/vlog/rotate.go`](internal/vlog/rotate.go) | `rotatingWriter`: rotates a `Logger`'s log file at 50 MiB, keeping up to 10 rotated segments. |
 | [`cmd/void-init/templates/`](cmd/void-init/templates) | `go:embed`-ed templates for generated files (see below). |
 | [`cmd/void-init/testfiles/`](cmd/void-init/testfiles) | Sample `user-data`/`network-config` fixtures, used both as documentation of the supported format and as test fixtures. |
-| [`cmd/void-mkinitfs/`](cmd/void-mkinitfs) | Builds bootable Void Linux qcow2 images with `void-init` pre-installed; see [void-mkinitfs](#void-mkinitfs) below. |
+| [`cmd/void-initfs/`](cmd/void-initfs) | Builds bootable Void Linux qcow2 images with `void-init` pre-installed; see [void-initfs](#void-initfs) below. |
 | [`internal/vlog/vlog.go`](internal/vlog/vlog.go) | Shared leveled, syslog-style logger used by both binaries (see [Logging](#logging)). |
 
 ## Supported `user-data` keys
@@ -120,31 +120,31 @@ On each run, `writeManagedFile` (in [`fsutil.go`](fsutil.go)) regenerates everyt
 go test ./...
 ```
 
-Tests parse the fixtures in [`cmd/void-init/testfiles/`](cmd/void-init/testfiles) and exercise pure logic like `subnetAddressCIDR`. Nothing that touches the live system (mounting devices, running `ip`/`chpasswd`, writing to `/etc`, or - for `void-mkinitfs` - `qemu-nbd`/`sgdisk`/`systemd-nspawn`) is covered by automated tests - those paths are meant to be exercised on an actual VM/host.
+Tests parse the fixtures in [`cmd/void-init/testfiles/`](cmd/void-init/testfiles) and exercise pure logic like `subnetAddressCIDR`. Nothing that touches the live system (mounting devices, running `ip`/`chpasswd`, writing to `/etc`, or - for `void-initfs` - `qemu-nbd`/`sgdisk`/`systemd-nspawn`) is covered by automated tests - those paths are meant to be exercised on an actual VM/host.
 
-## `void-mkinitfs`
+## `void-initfs`
 
-`void-mkinitfs` is a separate, host-side build tool that produces a bootable, cloud-init-ready Void Linux qcow2 disk image with `void-init` pre-installed and `/etc/rc.local` wired up to run it, so a VM booted from that image self-configures via `void-init` on first boot. It runs on a `systemd`-based host (uses `systemd-nspawn`, without `--boot`, to run package post-install scripts and install the bootloader inside the image being built) and targets x86_64 only.
+`void-initfs` is a separate, host-side build tool that produces a bootable, cloud-init-ready Void Linux qcow2 disk image with `void-init` pre-installed and `/etc/rc.local` wired up to run it, so a VM booted from that image self-configures via `void-init` on first boot. It runs on a `systemd`-based host (uses `systemd-nspawn`, without `--boot`, to run package post-install scripts and install the bootloader inside the image being built) and targets x86_64 only.
 
 ```sh
 # Build a new 3G qcow2 from scratch, BIOS or UEFI:
-void-mkinitfs --bios --libc=glibc -o void.qcow2
-void-mkinitfs --efi  --libc=musl  -o void.qcow2
+void-initfs --bios --libc=glibc -o void.qcow2
+void-initfs --efi  --libc=musl  -o void.qcow2
 
 # Reuse an already-built image to refresh void-init/rc.local without
 # re-bootstrapping packages (layout is inferred from partition count):
-void-mkinitfs -i void.qcow2
+void-initfs -i void.qcow2
 
 # Overwrite an existing output file, and don't prompt before downloading
 # xbps tools/keys (unattended/scripted runs):
-void-mkinitfs --bios -o void.qcow2 -f -y
+void-initfs --bios -o void.qcow2 -f -y
 ```
 
-Full design/implementation details - partition layout, package set, the `xbps-install`/`systemd-nspawn` pipeline, cleanup/error-handling strategy - live in the source under [`cmd/void-mkinitfs/`](cmd/void-mkinitfs), particularly the doc comments in `image.go` (partitioning/mounting), `bootstrap.go` (package set), `xbps.go` (repo keys/static tool bootstrap), and `cleanup.go` (the LIFO cleanup stack).
+Full design/implementation details - partition layout, package set, the `xbps-install`/`systemd-nspawn` pipeline, cleanup/error-handling strategy - live in the source under [`cmd/void-initfs/`](cmd/void-initfs), particularly the doc comments in `image.go` (partitioning/mounting), `bootstrap.go` (package set), `xbps.go` (repo keys/static tool bootstrap), and `cleanup.go` (the LIFO cleanup stack).
 
-Requires `xbps-install`, `xbps-reconfigure`, `systemd-nspawn`, `qemu-img`, `qemu-nbd`, `sgdisk`, `mkfs.vfat`, `mkfs.ext2`, `mkfs.ext4`, `partprobe`, `udevadm`, `blkid`, `grub-install`, and `grub-mkconfig` on `PATH`; run as root. If `xbps-install`/`xbps-reconfigure` or Void's repository signing keys aren't found locally, `void-mkinitfs` offers to download and checksum-verify them from Void's live static archive into `/usr/local/bin`/`/usr/local/share/void-mkinitfs/keys` (`-y`/`--yes` skips the confirmation, `--update-xbps` forces a refresh).
+Requires `xbps-install`, `xbps-reconfigure`, `systemd-nspawn`, `qemu-img`, `qemu-nbd`, `sgdisk`, `mkfs.vfat`, `mkfs.ext2`, `mkfs.ext4`, `partprobe`, `udevadm`, `blkid`, `grub-install`, and `grub-mkconfig` on `PATH`; run as root. If `xbps-install`/`xbps-reconfigure` or Void's repository signing keys aren't found locally, `void-initfs` offers to download and checksum-verify them from Void's live static archive into `/usr/local/bin`/`/usr/local/share/void-initfs/keys` (`-y`/`--yes` skips the confirmation, `--update-xbps` forces a refresh).
 
 ## Known limitations / TODO
 
 - Only the NoCloud datasource (CD-ROM device glob `/dev/sr*`) is supported - no HTTP/config-drive/other datasources.
-- `void-mkinitfs` targets x86_64 only (no cross-compilation), qcow2 output only, and requires a `systemd`-based host (no plain-chroot fallback for non-`systemd` hosts yet)
+- `void-initfs` targets x86_64 only (no cross-compilation), qcow2 output only, and requires a `systemd`-based host (no plain-chroot fallback for non-`systemd` hosts yet)

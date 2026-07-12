@@ -1,8 +1,8 @@
 1. Code optimization
 
 **Applied (2 fixes):**
-- `cmd/void-mkinitfs/cleanup.go` — fixed a real data race: `main`'s deferred `unwind()` and the signal-handler goroutine's `unwind()` could run concurrently, double-running cleanups (double `umount`/`qemu-nbd -d`) or letting the process exit mid-unmount. `cleanupStack` now has a mutex; a second caller blocks until the first finishes, then finds an empty stack.
-- `cmd/void-mkinitfs/image.go` — removed a dead `sort.Strings(matches)` in `detectLayout` (the glob results are only counted, never read in order) and the now-unused `sort` import.
+- `cmd/void-initfs/cleanup.go` — fixed a real data race: `main`'s deferred `unwind()` and the signal-handler goroutine's `unwind()` could run concurrently, double-running cleanups (double `umount`/`qemu-nbd -d`) or letting the process exit mid-unmount. `cleanupStack` now has a mutex; a second caller blocks until the first finishes, then finds an empty stack.
+- `cmd/void-initfs/image.go` — removed a dead `sort.Strings(matches)` in `detectLayout` (the glob results are only counted, never read in order) and the now-unused `sort` import.
 
 **Considered and deliberately left alone** (this codebase is exec-bound — its runtime is dominated by `xbps-install`/`systemd-nspawn`/`mkfs`, so micro-optimizations buy nothing):
 - `vlog` calls `os.Hostname()` on every log line. Caching it would be wrong: `void-init` changes the hostname mid-run, and hostname-at-log-time is correct syslog behavior.

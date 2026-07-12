@@ -35,7 +35,7 @@ func packages(l layout) []string {
 // partition stack directly, since xbps-install -r with a foreign root
 // just unpacks package files - it doesn't run pre/post install
 // scriptlets, which is the gap reconfigure (see nspawn.go) fills
-// afterward. -y is required since void-mkinitfs isn't
+// afterward. -y is required since void-initfs isn't
 // attached to a TTY: on the first fetch against a repo whose signing key
 // isn't already trusted on the host, xbps-install otherwise blocks on an
 // interactive "import this public key?" prompt it can't read an answer

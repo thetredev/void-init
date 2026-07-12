@@ -40,7 +40,7 @@ const sha256sumsURL = "https://repo-default.voidlinux.org/static/sha256sums.txt"
 var xbpsTools = []string{"xbps-install", "xbps-reconfigure"}
 
 // localBinDir is where static xbps binaries are installed if they can't
-// be found anywhere on PATH. void-mkinitfs runs as root, so this targets
+// be found anywhere on PATH. void-initfs runs as root, so this targets
 // the same system-wide location as a manual "make install" of locally
 // built tools, rather than a per-user directory.
 const localBinDir = "/usr/local/bin"
@@ -50,9 +50,9 @@ const localBinDir = "/usr/local/bin"
 // freshly created rootdir) doesn't have to hit the network on every
 // single build. Only ensureXbps, when it downloads a
 // (checksum-verified) copy of the tarball, refreshes this cache - there
-// is deliberately no hardcoded/embedded key shipped with void-mkinitfs
+// is deliberately no hardcoded/embedded key shipped with void-initfs
 // itself: whatever keys the live tarball bundles are what gets trusted.
-const localKeysDir = "/usr/local/share/void-mkinitfs/keys"
+const localKeysDir = "/usr/local/share/void-initfs/keys"
 
 // ensureXbps makes sure xbps-install/xbps-reconfigure and Void's
 // repository signing keys (localKeysDir) are both available: already on
@@ -144,7 +144,7 @@ func extendPath(dir string) {
 // confirm asks the user a yes/no question on stderr/stdin and reports
 // whether they answered yes.
 func confirm(question string) bool {
-	fmt.Fprintf(os.Stderr, "void-mkinitfs: %s [y/N] ", question)
+	fmt.Fprintf(os.Stderr, "void-initfs: %s [y/N] ", question)
 
 	reader := bufio.NewReader(os.Stdin)
 	answer, err := reader.ReadString('\n')
@@ -174,7 +174,7 @@ func downloadAndVerifyStaticXbps() (string, error) {
 		return "", fmt.Errorf("download sha256sums.txt: %w", err)
 	}
 
-	tmpFile, err := os.CreateTemp("", "void-mkinitfs-xbps-*.tar.xz")
+	tmpFile, err := os.CreateTemp("", "void-initfs-xbps-*.tar.xz")
 	if err != nil {
 		return "", fmt.Errorf("create temp file: %w", err)
 	}
@@ -198,7 +198,7 @@ func downloadAndVerifyStaticXbps() (string, error) {
 	}
 	logInfo("verified %s (sha256 %s) against sha256sums.txt", staticXbpsFilename, digest)
 
-	extractDir, err := os.MkdirTemp("", "void-mkinitfs-xbps-extract")
+	extractDir, err := os.MkdirTemp("", "void-initfs-xbps-extract")
 	if err != nil {
 		return "", fmt.Errorf("create extract dir: %w", err)
 	}
@@ -322,7 +322,7 @@ func installExtractedXbps(extractDir, destDir string) error {
 // installExtractedKeys copies every repository signing key Void's static
 // tarball bundles (under var/db/xbps/keys/) into destDir, replacing
 // whatever was cached there before. There's no fixed fingerprint to look
-// for: void-mkinitfs trusts whatever keys the checksum-verified tarball
+// for: void-initfs trusts whatever keys the checksum-verified tarball
 // itself ships, so a future key rotation on Void's end is picked up
 // automatically the next time this runs.
 func installExtractedKeys(extractDir, destDir string) error {

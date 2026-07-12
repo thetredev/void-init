@@ -1,5 +1,5 @@
 // Package vlog implements the leveled, syslog-style logging shared by
-// void-init and void-mkinitfs.
+// void-init and void-initfs.
 package vlog
 
 import (

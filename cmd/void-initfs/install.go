@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 )
 
-// rcLocal is the /etc/rc.local void-mkinitfs writes into every image.
+// rcLocal is the /etc/rc.local void-initfs writes into every image.
 // void-init does the rest of the work itself at first boot - there's no
 // mirroring of that boot-time logic here.
 const rcLocal = "#!/bin/sh\n/usr/local/bin/void-init\n"
@@ -14,7 +14,7 @@ const rcLocal = "#!/bin/sh\n/usr/local/bin/void-init\n"
 // installVoidInit copies the void-init binary at voidInitPath into root's
 // /usr/local/bin and wires up /etc/rc.local to run it. sshd (already
 // installed) generates its own host keys on first start via its own
-// runit service - void-mkinitfs does nothing SSH-key-related.
+// runit service - void-initfs does nothing SSH-key-related.
 func installVoidInit(root, voidInitPath string) error {
 	dst := filepath.Join(root, "usr", "local", "bin", "void-init")
 

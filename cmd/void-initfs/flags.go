@@ -7,7 +7,7 @@ import (
 	"strings"
 )
 
-// config holds void-mkinitfs's parsed and validated CLI flags.
+// config holds void-initfs's parsed and validated CLI flags.
 type config struct {
 	bios                bool
 	efi                 bool

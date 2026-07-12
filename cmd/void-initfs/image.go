@@ -9,9 +9,9 @@ import (
 	"time"
 )
 
-// nbdDevice is the network block device void-mkinitfs attaches images to.
+// nbdDevice is the network block device void-initfs attaches images to.
 // v1 hardcodes a single device rather than scanning for a free one, since
-// void-mkinitfs is meant to run one build at a time.
+// void-initfs is meant to run one build at a time.
 const nbdDevice = "/dev/nbd0"
 
 // nbdPollInterval/nbdPollTimeout bound waitForNBDSize's polling loop.
@@ -249,7 +249,7 @@ type mountTarget struct {
 // mount is pushed onto stack immediately, so a failure partway through
 // still unwinds whatever did mount.
 func mount(l layout, stack *cleanupStack) (*mountTarget, error) {
-	root, err := os.MkdirTemp("", "void-mkinitfs-root")
+	root, err := os.MkdirTemp("", "void-initfs-root")
 	if err != nil {
 		return nil, fmt.Errorf("create mount root: %w", err)
 	}

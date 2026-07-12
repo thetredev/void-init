@@ -1,4 +1,4 @@
-# Builds void-init and void-mkinitfs in three modes:
+# Builds void-init and void-initfs in three modes:
 #
 #   debug           dynamically linked, unstripped (default `go build`)
 #   release         dynamically linked, stripped (-ldflags="-s -w")
@@ -12,7 +12,7 @@
 #   make clean
 
 GO       := go
-BINARIES := void-init void-mkinitfs
+BINARIES := void-init void-initfs
 BUILDDIR := build
 STRIP_LDFLAGS := -s -w
 
