@@ -45,8 +45,17 @@ func (l layout) partitionCount() int {
 	return 3
 }
 
-// createImage creates a fresh 3G qcow2 file at path.
-func createImage(path string) error {
+// createImage creates a fresh 3G qcow2 file at path. If force is set, an
+// existing file at path is removed first (validate already allowed this
+// case through with -f/--force) instead of leaving qemu-img to fail on
+// it.
+func createImage(path string, force bool) error {
+	if force {
+		if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+			return fmt.Errorf("remove existing %s: %w", path, err)
+		}
+	}
+
 	logInfo("creating qcow2 image %s (3G)", path)
 	_, err := runCommand("qemu-img", "create", "-f", "qcow2", path, "3G")
 	return err

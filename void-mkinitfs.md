@@ -68,15 +68,21 @@ void-mkinitfs -i <image.qcow2>
   used with `-i` (no packages are bootstrapped).
 - `-o` / `--output`: destination qcow2 path. Fails if the file already exists (no silent
   overwrite — this is a destructive-adjacent, host-affecting tool, not an idempotent one like
-  `void-init` itself).
+  `void-init` itself) unless `-f`/`--force` is also given.
 - `-i` / `--image <qcow2 path>`: reuse an existing qcow2 instead of building a rootfs from
   scratch — see step 10. Mutually exclusive with `-o`: `-i` operates on the given image in
   place, it doesn't produce a separate output file.
+- `-f` / `--force`: with `-o`, remove an existing file at the output path (right before
+  `qemu-img create`, not during flag validation) instead of failing. Only applies alongside `-o`
+  — rejected alongside `-i`, which has no output file to overwrite.
 - `--update-xbps`: force a re-download/re-verify of the cached xbps tools (`/usr/local/bin`) and
   repository signing keys (`/usr/local/share/void-mkinitfs/keys`) from Void's live static archive,
   even if both are already present. Only applies when building from scratch — rejected alongside
   `-i`, since `-i` never bootstraps packages and so never touches either (see "Repository keys"
   below).
+- `-y` / `--yes`: assume yes to the "download and verify Void's static xbps tools/keys?"
+  confirmation preflight asks before fetching from the live static archive (see "Repository keys"
+  below), for unattended/scripted runs.
 
 Preflight, before doing anything else: check `exec.LookPath` for every external tool the pipeline needs (`xbps-install`, `xbps-reconfigure`, `systemd-nspawn`, `qemu-img`, `qemu-nbd`, `sgdisk`, `mkfs.vfat`, `mkfs.ext2`, `mkfs.ext4` `partprobe`, `udevadm`, `blkid`, `grub-install`, `grub-mkconfig`) and fail with one clear error listing everything missing, rather than dying halfway through the pipeline on the first missing tool. If `xbps-install`/`xbps-reconfigure` are not available in `/usr/local/bin` or on `PATH`, or the repository key cache (`/usr/local/share/void-mkinitfs/keys`) is empty, `void-mkinitfs` will ask for permission to download and checksum-verify Void's static tools/keys from [https://repo-default.voidlinux.org/static](https://repo-default.voidlinux.org/static) — see "Repository keys" below. That check runs last, and is skipped entirely with `-i`.
 

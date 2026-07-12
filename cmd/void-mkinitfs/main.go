@@ -51,7 +51,7 @@ func run(cfg *config) error {
 		}
 	}()
 
-	if err := preflight(cfg.image == "", cfg.updateXbps); err != nil {
+	if err := preflight(cfg.image == "", cfg.updateXbps, cfg.assumeYes); err != nil {
 		return err
 	}
 
@@ -108,7 +108,7 @@ func runBuild(cfg *config, stack *cleanupStack) error {
 
 	logInfo("building a new %s image at %s (%s)", l, cfg.output, cfg.libc)
 
-	if err := createImage(cfg.output); err != nil {
+	if err := createImage(cfg.output, cfg.force); err != nil {
 		return err
 	}
 

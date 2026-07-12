@@ -17,6 +17,8 @@ type config struct {
 	reinstallBootloader bool
 	voidInitBinary      string
 	updateXbps          bool
+	assumeYes           bool
+	force               bool
 }
 
 // parseFlags parses and validates os.Args.
@@ -33,6 +35,10 @@ func parseFlags() (*config, error) {
 	flag.BoolVar(&cfg.reinstallBootloader, "reinstall-bootloader", false, "with -i, also reinstall the bootloader (step 9)")
 	flag.StringVar(&cfg.voidInitBinary, "void-init-binary", "void-init", "path to a built void-init binary to install into the image")
 	flag.BoolVar(&cfg.updateXbps, "update-xbps", false, "force a re-download/re-verify of the cached xbps tools and repository keys from Void's static archive")
+	flag.BoolVar(&cfg.assumeYes, "y", false, "assume yes to the xbps tools/keys download confirmation")
+	flag.BoolVar(&cfg.assumeYes, "yes", false, "same as -y")
+	flag.BoolVar(&cfg.force, "f", false, "with -o, remove an existing file at the output path instead of failing")
+	flag.BoolVar(&cfg.force, "force", false, "same as -f")
 
 	flag.Parse()
 
@@ -46,8 +52,10 @@ func parseFlags() (*config, error) {
 // validate enforces the flag combinations described in void-mkinitfs.md's
 // "CLI" section: --bios/--efi are mutually exclusive and, when not using
 // -i, exactly one is required; -i and -o are mutually exclusive;
-// --reinstall-bootloader only makes sense alongside -i (the from-scratch
-// path always installs the bootloader, per step 9).
+// --reinstall-bootloader/--update-xbps/-f/--force only make sense
+// alongside -o (the from-scratch path). With -f, an existing -o target is
+// allowed to pass validation, but isn't removed here - that happens later
+// in createImage, since validate is meant to be side-effect-free.
 func (c *config) validate() error {
 	if c.bios && c.efi {
 		return fmt.Errorf("--bios and --efi are mutually exclusive")
@@ -59,6 +67,9 @@ func (c *config) validate() error {
 		}
 		if c.updateXbps {
 			return fmt.Errorf("--update-xbps only applies when building from scratch (no packages are bootstrapped with -i)")
+		}
+		if c.force {
+			return fmt.Errorf("-f/--force only applies to -o (there's no output file to overwrite with -i)")
 		}
 		if _, err := os.Stat(c.image); err != nil {
 			return fmt.Errorf("-i %s: %w", c.image, err)
@@ -72,8 +83,8 @@ func (c *config) validate() error {
 	if c.output == "" {
 		return fmt.Errorf("-o is required (or -i to reuse an existing image)")
 	}
-	if _, err := os.Stat(c.output); err == nil {
-		return fmt.Errorf("-o %s: already exists", c.output)
+	if _, err := os.Stat(c.output); err == nil && !c.force {
+		return fmt.Errorf("-o %s: already exists (use -f/--force to overwrite)", c.output)
 	}
 	if !c.bios && !c.efi {
 		return fmt.Errorf("exactly one of --bios or --efi is required")

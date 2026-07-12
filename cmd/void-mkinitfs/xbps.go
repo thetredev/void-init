@@ -56,10 +56,10 @@ const localKeysDir = "/usr/local/share/void-mkinitfs/keys"
 // ensureXbps makes sure xbps-install/xbps-reconfigure and Void's
 // repository signing keys (localKeysDir) are both available: already on
 // PATH / already cached, or downloaded and checksum-verified from Void's
-// live static archive after asking the user for permission. update
-// forces a re-download/re-verify of both even if already present
-// (--update-xbps).
-func ensureXbps(update bool) error {
+// live static archive after asking the user for permission (skipped when
+// assumeYes is set, i.e. -y/--yes). update forces a re-download/re-verify
+// of both even if already present (--update-xbps).
+func ensureXbps(update, assumeYes bool) error {
 	extendPath(localBinDir)
 
 	missing := missingTools()
@@ -71,7 +71,7 @@ func ensureXbps(update bool) error {
 	}
 
 	logInfo("refreshing xbps tools/keys from %s (missing tools: %v, update: %v)", staticXbpsURL, missing, update)
-	if !confirm(fmt.Sprintf("download and verify Void's static xbps tools/keys from %s?", staticXbpsURL)) {
+	if !assumeYes && !confirm(fmt.Sprintf("download and verify Void's static xbps tools/keys from %s?", staticXbpsURL)) {
 		return fmt.Errorf("xbps tools/keys required but not available")
 	}
 

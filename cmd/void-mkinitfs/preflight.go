@@ -35,8 +35,8 @@ var requiredTools = []string{
 // archive into /usr/local/bin and /usr/local/share/void-mkinitfs/keys if
 // missing - that check runs last, per void-mkinitfs.md's CLI section.
 // updateXbps (--update-xbps) forces that refresh even if both are
-// already present.
-func preflight(needXbps, updateXbps bool) error {
+// already present; assumeYes (-y/--yes) skips its download confirmation.
+func preflight(needXbps, updateXbps, assumeYes bool) error {
 	var missing []string
 	for _, tool := range requiredTools {
 		if _, err := exec.LookPath(tool); err != nil {
@@ -48,7 +48,7 @@ func preflight(needXbps, updateXbps bool) error {
 	}
 
 	if needXbps {
-		if err := ensureXbps(updateXbps); err != nil {
+		if err := ensureXbps(updateXbps, assumeYes); err != nil {
 			return err
 		}
 	}

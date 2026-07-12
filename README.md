@@ -134,11 +134,15 @@ void-mkinitfs --efi  --libc=musl  -o void.qcow2
 # Reuse an already-built image to refresh void-init/rc.local without
 # re-bootstrapping packages (layout is inferred from partition count):
 void-mkinitfs -i void.qcow2
+
+# Overwrite an existing output file, and don't prompt before downloading
+# xbps tools/keys (unattended/scripted runs):
+void-mkinitfs --bios -o void.qcow2 -f -y
 ```
 
 Full design/implementation details - partition layout, package set, the `xbps-install`/`systemd-nspawn` pipeline, cleanup/error-handling strategy - live in [`void-mkinitfs.md`](void-mkinitfs.md).
 
-Requires `xbps-install`, `xbps-reconfigure`, `systemd-nspawn`, `qemu-img`, `qemu-nbd`, `sgdisk`, `mkfs.vfat`, `mkfs.ext2`, `mkfs.ext4`, `partprobe`, `udevadm`, `blkid`, `grub-install`, and `grub-mkconfig` on `PATH`; run as root. If `xbps-install`/`xbps-reconfigure` or Void's repository signing keys aren't found locally, `void-mkinitfs` offers to download and checksum-verify them from Void's live static archive into `/usr/local/bin`/`/usr/local/share/void-mkinitfs/keys` (`--update-xbps` forces a refresh).
+Requires `xbps-install`, `xbps-reconfigure`, `systemd-nspawn`, `qemu-img`, `qemu-nbd`, `sgdisk`, `mkfs.vfat`, `mkfs.ext2`, `mkfs.ext4`, `partprobe`, `udevadm`, `blkid`, `grub-install`, and `grub-mkconfig` on `PATH`; run as root. If `xbps-install`/`xbps-reconfigure` or Void's repository signing keys aren't found locally, `void-mkinitfs` offers to download and checksum-verify them from Void's live static archive into `/usr/local/bin`/`/usr/local/share/void-mkinitfs/keys` (`-y`/`--yes` skips the confirmation, `--update-xbps` forces a refresh).
 
 ## Known limitations / TODO
 
