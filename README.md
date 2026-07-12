@@ -41,7 +41,7 @@ void-init logs every notable action it takes (locating datasources, applying hos
 Jul 12 10:15:23 template-vm void-init[1234]: INFO: setting hostname to "template-vm"
 ```
 
-Since void-init runs from `/etc/rc.local`, before any syslog daemon (e.g. `socklog`) has started, there's no `/dev/log` socket available to log to yet. Instead, log lines are written to stderr - which ends up on the console during early boot - and, best-effort, appended to `/var/log/void-init/void-init.log` so the boot's actions remain inspectable afterwards. That file is rotated once it reaches 50 MiB, keeping up to 10 rotated segments alongside it (`void-init.log.1` .. `void-init.log.10`, oldest evicted first). If the log file can't be opened (e.g. `/var` isn't writable), void-init logs to stderr only and continues; a missing log file is never fatal.
+Since void-init runs from `/etc/rc.local`, before any syslog daemon (e.g. `socklog`) has started, there's no `/dev/log` socket available to log to yet. Instead, log lines are written to stderr - which ends up on the console during early boot - and, best-effort, appended to `/var/log/void-init/void-init.log` so the boot's actions remain inspectable afterwards. That file is rotated once it reaches 50 MiB, keeping up to 5 rotated segments alongside it (`void-init.log.1` .. `void-init.log.5`, oldest evicted first). If the log file can't be opened (e.g. `/var` isn't writable), void-init logs to stderr only and continues; a missing log file is never fatal.
 
 ## Building
 

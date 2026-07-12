@@ -13,38 +13,44 @@ NoCloud cloud-init ISO (`user-data` + optional `network-config`) off `/dev/sr*`,
 hostname, user password hash, SSH authorized keys, network interface configuration (DHCP/SLAAC via
 `dhcpcd`, static via `ip` directly), `/etc/resolv.conf`, and `/etc/hosts`.
 
-There is a second, **not-yet-implemented** binary planned: `void-mkinitfs`, which builds a
-bootable, cloud-init-ready Void Linux qcow2 disk image from scratch (with `void-init` pre-baked
-in and `/etc/rc.local` wired up), so a VM can be provisioned from that image and self-configure on
-first boot via `void-init`. The full implementation plan for it lives in **`void-mkinitfs.md`** at
-the repo root — **read that file in full before touching anything related to it**; it is a living
-planning document, hand-edited by the user between conversation turns, and is authoritative over
-any earlier summary or memory of its contents.
+There is a second binary, `void-mkinitfs`, which builds a bootable, cloud-init-ready Void Linux
+qcow2 disk image from scratch (with `void-init` pre-baked in and `/etc/rc.local` wired up), so a VM
+can be provisioned from that image and self-configure on first boot via `void-init`. It is fully
+implemented (both BIOS and EFI layouts build and boot). Its design lives in the doc comments under
+`cmd/void-mkinitfs/` — there is no separate planning document; a `void-mkinitfs.md` design doc
+existed during initial development but was deliberately deleted once the implementation caught up
+with it (see git history for `void-mkinitfs.md` if you need the original design rationale).
 
-## Repo layout (current, pre-restructuring)
+## Repo layout
 
-Flat `package main` at the repo root — one binary, `void-init`:
+A `cmd/` layout with two binaries sharing `internal/vlog` as their only common code:
+
+**`cmd/void-init/`** — the boot-time binary:
 
 | File | Responsibility |
 |---|---|
-| `main.go` | Entry point: find → parse → apply `user-data`, then `network-config`, then `/etc/hosts`. Bookends the run with `logInfo("starting")`/`logInfo("finished successfully")`; any error goes through `fatal(err)` (logs at ERROR, closes the log, `os.Exit(1)`). |
+| `main.go` | Entry point: find → parse → apply `user-data`, then `network-config`, then `/etc/hosts`, then enable the `qemu-ga` service. Bookends the run with `logInfo("starting")`/`logInfo("finished successfully")`; any error goes through `fatal(err)` (logs at ERROR, closes the log, `os.Exit(1)`). |
 | `cloudinit.go` | `FindUserData`/`FindNetworkConfig`: glob `/dev/sr*`, mount each candidate read-only as `iso9660` in turn, read the named file off the first one that has it. |
 | `userdata.go` | `UserData` struct (the Proxmox-exposed `#cloud-config` subset) + `ParseUserData` (validates the `#cloud-config` header, unmarshals YAML). |
 | `apply.go` | `ApplyUserData`: `/etc/hostname` + live `sethostname(2)`, password hash via `usermod -p`, SSH authorized keys (via `writeManagedFile`, see below). |
 | `network.go` | `NetworkConfig`/`NetworkConfigDevice`/`Subnet` (NoCloud `network-config` v1 subset) + `ApplyNetworkConfig`: resolves `physical` entries to a real interface by MAC (not by `name` — predictable interface naming isn't guaranteed to match what cloud-init supplied), brings interfaces up, hands DHCP/SLAAC subnet types to `dhcpcd`, applies `static`/`static6` directly via `ip addr add`/`ip route add`, merges all nameservers into one `/etc/resolv.conf` write. |
-| `runit.go` | `svDir`/`runsvdirCurrent` (the runit layout: `/etc/sv/<name>` holds each service's definition, `/etc/runit/runsvdir/current/` is the active runsvdir) + `enableService`/`disableService`, both package-private: `enableService` symlinks `svDir/<name>` into `runsvdirCurrent`, mirroring `ln -s /etc/sv/<name> /etc/runit/runsvdir/current/`; `disableService` removes that symlink, mirroring `rm /etc/runit/runsvdir/current/<name>`. Both are idempotent — already-enabled/-disabled is logged and treated as success, not an error. Call sites live in `network.go`: `applyDynamicNetwork` enables `dhcpcd`, `applyStaticNetwork` disables it. |
+| `runit.go` | `svDir`/`runsvdirCurrent` (the runit layout: `/etc/sv/<name>` holds each service's definition, `/etc/runit/runsvdir/current/` is the active runsvdir) + `enableService`/`disableService`, both package-private: `enableService` symlinks `svDir/<name>` into `runsvdirCurrent`, mirroring `ln -s /etc/sv/<name> /etc/runit/runsvdir/current/`; `disableService` removes that symlink, mirroring `rm /etc/runit/runsvdir/current/<name>`. Both are idempotent — already-enabled/-disabled is logged and treated as success, not an error. Call sites: `network.go`'s `applyDynamicNetwork` enables `dhcpcd`, `applyStaticNetwork` disables it; `main.go` enables `qemu-ga` unconditionally. |
 | `hosts.go` | `ApplyHosts`: renders `/etc/hosts` from a template; `staticAddress` picks the address to put in it (first static subnet found, else the `127.0.1.1` loopback alias). |
 | `fsutil.go` | `writeManagedFile` (see below) and `withSingleTrailingNewline`. |
-| `log.go` | Leveled logging (`logInfo`/`logWarn`/`logError`), see Logging section below. |
+| `log.go` | Wires `logInfo`/`logWarn`/`logError` to `internal/vlog`, with `/var/log/void-init/void-init.log` as the file sink (see Logging section below). |
 | `templates/` | `go:embed`-ed templates: `hosts` (Go `text/template`), `dhcpcd` (static, copied verbatim). |
 | `testfiles/` | Sample `user-data`/`network-config` fixtures — both documentation of the supported format and test fixtures. |
 | `*_test.go` | `network_test.go`, `userdata_test.go` — parse the `testfiles/` fixtures, exercise pure logic (`subnetAddressCIDR`). |
 
+**`cmd/void-mkinitfs/`** — the host-side image-build tool; see the "`void-mkinitfs`" section below
+for its architecture. **`internal/vlog/`** — the shared logger; see Logging below.
+
 Only external dependency: `gopkg.in/yaml.v3`. Go version: 1.26.5 (see `go.mod`). Module:
 `github.com/thetredev/void-init`.
 
-The build produces a `void-init` binary at the repo root (gitignored — see `.gitignore`); don't
-commit it.
+`make` (see `Makefile`) builds both binaries in three modes (`debug`, `release`, `release-static`)
+under `build/` (gitignored — see `.gitignore`); `go build ./...` builds both at the repo root
+instead. Don't commit build artifacts either way.
 
 ## Build / test
 
@@ -58,6 +64,11 @@ gofmt -l .          # should print nothing
 Run all of these after any change before considering it done.
 
 ## Core conventions — preserve these when adding code
+
+These describe `cmd/void-init/`; `cmd/void-mkinitfs/` follows an analogous discipline (every
+external command logged before it runs via `runCommand`/`runCommandEnv` in `exec.go`, the same
+error-wrapping style, no speculative abstraction) but writes to a build host rather than a live
+system, so the managed-file pattern doesn't apply to it.
 
 1. **Managed-file pattern.** Any file `void-init` writes onto a live system that a user might
    hand-edit afterward goes through `writeManagedFile` (`fsutil.go`), which regenerates everything
@@ -87,25 +98,26 @@ Run all of these after any change before considering it done.
 
 ## Logging mechanism
 
-`log.go` implements three levels (`logInfo`/`logWarn`/`logError`) and a single `logf` that formats
-a line in a style modeled on classic syslog (RFC3164): a timestamp, hostname, `void-init[pid]:`,
-level, message — e.g. `Jul 12 10:15:23 template-vm void-init[1234]: INFO: setting hostname to
-"template-vm"`. Lines are always written to stderr (which ends up on the console during early
-boot, since `void-init` runs before any getty/logger takes over) and, best-effort, appended to
-`/var/log/void-init.log` (silently falls back to stderr-only if that file can't be opened — a
-missing log file is never fatal).
+`internal/vlog` implements three levels (`Info`/`Warn`/`Error`, exposed as package-private
+`logInfo`/`logWarn`/`logError` wrappers in each binary's own `log.go`) and a single `logf` that
+formats a line in a style modeled on classic syslog (RFC3164): a timestamp, hostname,
+`<program>[pid]:`, level, message — e.g. `Jul 12 10:15:23 template-vm void-init[1234]: INFO:
+setting hostname to "template-vm"`. Lines are always written to stderr.
 
-Why not real syslog: `void-init` runs from `/etc/rc.local` *before* any syslog daemon (e.g.
+Each binary parameterizes `vlog.New(program, logPath)` differently:
+- `void-init` (`cmd/void-init/log.go`) passes `/var/log/void-init/void-init.log` — a real
+  boot-time system record, best-effort appended to (silently falls back to stderr-only if it can't
+  be opened; a missing log file is never fatal). That file is rotated by `internal/vlog/rotate.go`
+  once it reaches 50 MiB, keeping up to 5 rotated backups (`void-init.log.1` .. `void-init.log.5`,
+  oldest evicted first).
+- `void-mkinitfs` (`cmd/void-mkinitfs/log.go`) passes `""` — **stderr-only**, since it's an
+  interactive build tool run on the host machine, not a boot-time record; a log file on the
+  *build host* wouldn't mean anything.
+
+Why not real syslog for `void-init`: it runs from `/etc/rc.local` *before* any syslog daemon (e.g.
 `socklog`, which Void doesn't install by default) has started, so there's no `/dev/log` socket to
 write to yet. The file-plus-stderr approach is the closest equivalent available this early in
 boot.
-
-**Planned change** (per `void-mkinitfs.md`'s "Repo restructuring" section): once the second binary
-exists, this logic moves into a shared `internal/vlog` package so both binaries use the exact same
-line format and level semantics, parameterized by program name and an optional file sink.
-`void-init` keeps the `/var/log/void-init.log` sink (it's a real boot-time system record);
-`void-mkinitfs` is **stderr-only** (it's an interactive build tool run on the host machine —
-`/var/log/void-init.log` on the *build host* wouldn't mean anything).
 
 ## Domain knowledge
 
@@ -120,8 +132,8 @@ line format and level semantics, parameterized by program name and an optional f
   unpacks package files), but package pre/post-install trigger scripts (locale generation, initramfs
   builds via `dracut`, `shadow`'s user/group setup, etc.) are deferred when the target root isn't
   the host's actual `/`, and must be run afterward via `xbps-reconfigure -fa` inside something that
-  furnishes a proper `/proc`/`/sys`/`/dev` — see `void-mkinitfs.md` for why `systemd-nspawn` (no
-  `--boot`) is used for that instead of a hand-rolled chroot.
+  furnishes a proper `/proc`/`/sys`/`/dev` — see `cmd/void-mkinitfs/nspawn.go`'s `reconfigure` for
+  why `systemd-nspawn` (no `--boot`) is used for that instead of a hand-rolled chroot.
 - No syslog daemon by default; `socklog` is the optional lightweight one if a user wants one, but
   it's not assumed to exist.
 
@@ -142,20 +154,17 @@ Cloud-Init GUI page exposes, not the full cloud-init spec):
   file (`user-data` or `network-config`).
 
 **Testing philosophy:** only pure logic gets automated tests — YAML parsing against the
-`testfiles/` fixtures, `subnetAddressCIDR`'s address/CIDR math. Anything that touches the live
-system (mounting devices, running `ip`/`usermod`, writing to `/etc`) is *not* unit tested; it's
-meant to be exercised on an actual VM. Keep this same split when adding `void-mkinitfs` code:
-partition-size arithmetic, package-list assembly, and layout-inference-from-partition-count logic
-are unit-testable; the actual `qemu-nbd`/`sgdisk`/`systemd-nspawn` invocations are not.
+`testfiles/` fixtures, `subnetAddressCIDR`'s address/CIDR math, and, in `cmd/void-mkinitfs/`,
+CLI flag validation (`flags_test.go`) and pure helpers like `byUUIDSymlink` (`bootloader_test.go`).
+Anything that touches the live system (mounting devices, running `ip`/`usermod`/`sgdisk`, writing
+to `/etc`, `qemu-nbd`/`systemd-nspawn` invocations) is *not* unit tested; it's meant to be
+exercised on an actual VM/host.
 
-## `void-mkinitfs` (planned — see `void-mkinitfs.md` for the full plan)
+## `void-mkinitfs`
 
-High-level facts an agent needs before writing any code under a future `cmd/void-mkinitfs/`:
+High-level facts an agent needs before touching `cmd/void-mkinitfs/`. It's fully implemented — this
+is a description of what's there, not a plan for what to build:
 
-- **Repo restructuring first.** Move to `cmd/void-init/` + `cmd/void-mkinitfs/` +
-  `internal/vlog/`. `go:embed` patterns can't cross a `..` boundary, so `templates/`/`testfiles/`
-  move under `cmd/void-init/` verbatim. This restructuring is its own reviewable step, done before
-  any `void-mkinitfs` pipeline logic is written.
 - **Host requirement:** a `systemd`-based host with `systemd-nspawn` available (used without
   `--boot` — single-command execution with an auto-provisioned private `/proc`/`/sys`/`/dev`/`/run`,
   not a full container boot). x86_64 only, no cross-compilation, output is always a 3G qcow2.
@@ -193,17 +202,20 @@ High-level facts an agent needs before writing any code under a future `cmd/void
   error listing everything missing, rather than dying halfway through the pipeline. If
   `xbps-install`/`xbps-reconfigure` specifically aren't found, offer to download static builds
   from `repo-default.voidlinux.org/static` into `/usr/local/bin` — that check runs last.
-- **Explicitly out of scope this iteration:** cross-compilation, any output format other than
-  qcow2, a non-`systemd-nspawn` (plain chroot) fallback for non-systemd hosts.
-- Several package names in the plan's proposed set are marked "verify against the live repo" —
-  they come from memory, not a checked snapshot. Confirm with `xbps-query -R` at implementation
-  time rather than trusting them as ground truth.
+- **Explicitly out of scope:** cross-compilation, any output format other than qcow2, a
+  non-`systemd-nspawn` (plain chroot) fallback for non-systemd hosts.
+- **Package set** (`bootstrap.go`'s `packages`): `base-system`, `linux`, `dracut`, `runit-void`,
+  `dhcpcd`, `iproute2`, `openssh`, `shadow`, `e2fsprogs`, `dosfstools`, `ca-certificates`,
+  `iana-etc`, `bash-completion`, `net-tools`, `qemu-ga`, plus `grub-x86_64-efi` (EFI) or `grub`
+  (BIOS). This list was arrived at iteratively against real builds/boots (see git history: it
+  started as `base-minimal`, moved to `base-system` to get a "full" system, then gained
+  `bash-completion`/`net-tools`/`qemu-ga`) rather than from a single `xbps-query -R` pass — treat
+  it as working ground truth, but a future package addition should still be checked against a live
+  repo before assuming the name is right.
 
 ## Documents in this repo and their role
 
-- `README.md` — user-facing description of the currently shipped `void-init` boot tool.
-- `void-mkinitfs.md` — implementation plan for the not-yet-built `void-mkinitfs` tool. Living
-  document, hand-edited by the user; if implementation reveals a detail in the plan is wrong,
-  update the plan rather than silently diverging from it.
+- `README.md` — user-facing description of both shipped binaries (`void-init` and
+  `void-mkinitfs`).
 - `AGENTS.md` (this file) / `CLAUDE.md` — agent operating context, not user-facing; not meant to
   be linked from the README.
