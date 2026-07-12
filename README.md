@@ -138,7 +138,7 @@ void-mkinitfs -i void.qcow2
 
 Full design/implementation details - partition layout, package set, the `xbps-install`/`systemd-nspawn` pipeline, cleanup/error-handling strategy - live in [`void-mkinitfs.md`](void-mkinitfs.md).
 
-Requires `xbps-install`, `xbps-reconfigure`, `systemd-nspawn`, `qemu-img`, `qemu-nbd`, `sgdisk`, `mkfs.vfat`, `mkfs.ext2`, `mkfs.ext4`, `partprobe`, `udevadm`, `blkid`, `grub-install`, and `grub-mkconfig` on `PATH`; run as root. If `xbps-install`/`xbps-reconfigure` aren't found, `void-mkinitfs` offers to download Void's static builds into `/usr/local/bin`.
+Requires `xbps-install`, `xbps-reconfigure`, `systemd-nspawn`, `qemu-img`, `qemu-nbd`, `sgdisk`, `mkfs.vfat`, `mkfs.ext2`, `mkfs.ext4`, `partprobe`, `udevadm`, `blkid`, `grub-install`, and `grub-mkconfig` on `PATH`; run as root. If `xbps-install`/`xbps-reconfigure` or Void's repository signing keys aren't found locally, `void-mkinitfs` offers to download and checksum-verify them from Void's live static archive into `/usr/local/bin`/`/usr/local/share/void-mkinitfs/keys` (`--update-xbps` forces a refresh).
 
 ## Known limitations / TODO
 

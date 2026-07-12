@@ -72,8 +72,45 @@ void-mkinitfs -i <image.qcow2>
 - `-i` / `--image <qcow2 path>`: reuse an existing qcow2 instead of building a rootfs from
   scratch — see step 10. Mutually exclusive with `-o`: `-i` operates on the given image in
   place, it doesn't produce a separate output file.
+- `--update-xbps`: force a re-download/re-verify of the cached xbps tools (`/usr/local/bin`) and
+  repository signing keys (`/usr/local/share/void-mkinitfs/keys`) from Void's live static archive,
+  even if both are already present. Only applies when building from scratch — rejected alongside
+  `-i`, since `-i` never bootstraps packages and so never touches either (see "Repository keys"
+  below).
 
-Preflight, before doing anything else: check `exec.LookPath` for every external tool the pipeline needs (`xbps-install`, `xbps-reconfigure`, `systemd-nspawn`, `qemu-img`, `qemu-nbd`, `sgdisk`, `mkfs.vfat`, `mkfs.ext2`, `mkfs.ext4` `partprobe`, `udevadm`, `blkid`, `grub-install`, `grub-mkconfig`) and fail with one clear error listing everything missing, rather than dying halfway through the pipeline on the first missing tool. If `xbps-install`/`xbps-reconfigure` are not available in `/usr/local/bin` or on `PATH`, `void-mkinitfs` will ask for permissions to download static builds from [https://repo-default.voidlinux.org/static](https://repo-default.voidlinux.org/static) into `/usr/local/bin`. The check for those two binaries specifically is performed *last*.
+Preflight, before doing anything else: check `exec.LookPath` for every external tool the pipeline needs (`xbps-install`, `xbps-reconfigure`, `systemd-nspawn`, `qemu-img`, `qemu-nbd`, `sgdisk`, `mkfs.vfat`, `mkfs.ext2`, `mkfs.ext4` `partprobe`, `udevadm`, `blkid`, `grub-install`, `grub-mkconfig`) and fail with one clear error listing everything missing, rather than dying halfway through the pipeline on the first missing tool. If `xbps-install`/`xbps-reconfigure` are not available in `/usr/local/bin` or on `PATH`, or the repository key cache (`/usr/local/share/void-mkinitfs/keys`) is empty, `void-mkinitfs` will ask for permission to download and checksum-verify Void's static tools/keys from [https://repo-default.voidlinux.org/static](https://repo-default.voidlinux.org/static) — see "Repository keys" below. That check runs last, and is skipped entirely with `-i`.
+
+### Repository keys
+
+`xbps-install`'s key trust is scoped per-rootdir (`<rootdir>/var/db/xbps/keys/`), not host-global,
+and step 5 always targets a freshly created rootdir (the just-mounted partition stack) that has
+never trusted anything — so without pre-seeding it, `xbps-install` blocks on an interactive
+"import this public key?" prompt it can't read an answer to (`void-mkinitfs` isn't attached to a
+TTY), even with `-y`. Void doesn't publish a separate `archlinux-keyring`-style package for this:
+the trusted repository signing key(s) ship bundled inside `xbps` itself, and inside the static
+tarball at `var/db/xbps/keys/*.plist`.
+
+`void-mkinitfs` doesn't hardcode any key. Instead, whenever it needs to (re)provision the static
+xbps tools — missing from `/usr/local/bin`, missing keys in the local cache, or `--update-xbps` —
+it downloads [`sha256sums.txt`](https://repo-default.voidlinux.org/static/sha256sums.txt) alongside
+the tarball, verifies the tarball's sha256 digest is one `sha256sums.txt` actually lists, and only
+then extracts `var/db/xbps/keys/*.plist` from the verified tarball into a local cache
+(`/usr/local/share/void-mkinitfs/keys`). A checksum mismatch is fatal — nothing extracted from an
+unverified tarball is installed or trusted. Before every step-5 bootstrap, that cache is copied
+into `<tmp>/var/db/xbps/keys/`, mirroring what `void-installer` does when seeding a fresh target
+root from the host's own trusted keys.
+
+Caveat found at implementation time: `sha256sums.txt`'s row for the `-latest` alias filename
+itself (`xbps-static-latest.x86_64-musl.tar.xz`) was observed to lag behind what that alias
+currently serves — Void's build infra doesn't appear to regenerate the alias's own checksum row on
+every version bump, even though the real per-version row (e.g.
+`xbps-static-static-0.60.4_1.x86_64-musl.tar.xz`) is correct. Verification therefore checks whether
+the downloaded digest appears *anywhere* in `sha256sums.txt`, rather than looking up the row for
+the alias filename specifically — this still only accepts bytes Void's own build actually published
+and recorded a checksum for, it just doesn't assume the alias's own bookkeeping is current.
+
+This step is skipped entirely with `-i`: reusing an existing image never runs step 5 (no packages
+are bootstrapped), so it never needs repository keys either.
 
 ## Cleanup strategy
 
@@ -186,7 +223,7 @@ XBPS_ARCH=<x86_64|x86_64-musl> xbps-install -S -y \
   <package set>
 ```
 
-`-y` is required because `void-mkinitfs` isn't attached to a TTY: on the first fetch against a repo whose signing key isn't already trusted on the host, `xbps-install` otherwise blocks on an interactive "import this public key?" prompt it can't read an answer to.
+`-y` is required because `void-mkinitfs` isn't attached to a TTY: on the first fetch against a repo whose signing key isn't already trusted, `xbps-install` otherwise blocks on an interactive "import this public key?" prompt it can't read an answer to. In practice `-y` alone doesn't cover that specific prompt: XBPS's key trust is scoped per-rootdir (`<rootdir>/var/db/xbps/keys/`), and `<tmp>` here is always a freshly created rootdir that has never trusted anything, so the prompt fires on *every* build. `void-mkinitfs` pre-seeds `<tmp>/var/db/xbps/keys/` before running `xbps-install` to avoid it — see "Repository keys" above for how those keys are sourced (no hardcoded/embedded key; always from Void's live static archive, checksum-verified).
 
 Repo/arch by `--libc`:
 - `glibc` (default): `XBPS_ARCH=x86_64`, repo `https://repo-default.voidlinux.org/current`

@@ -30,10 +30,13 @@ var requiredTools = []string{
 // preflight checks that every external tool the pipeline needs is
 // available before any work starts. If needXbps is set (building from
 // scratch, as opposed to reusing an image via -i), it also ensures
-// xbps-install/xbps-reconfigure are available, offering to download
-// static builds into /usr/local/bin if they're missing anywhere on PATH -
-// that check runs last, per void-mkinitfs.md's CLI section.
-func preflight(needXbps bool) error {
+// xbps-install/xbps-reconfigure and Void's repository signing keys are
+// available, offering to download/verify them from Void's live static
+// archive into /usr/local/bin and /usr/local/share/void-mkinitfs/keys if
+// missing - that check runs last, per void-mkinitfs.md's CLI section.
+// updateXbps (--update-xbps) forces that refresh even if both are
+// already present.
+func preflight(needXbps, updateXbps bool) error {
 	var missing []string
 	for _, tool := range requiredTools {
 		if _, err := exec.LookPath(tool); err != nil {
@@ -45,7 +48,7 @@ func preflight(needXbps bool) error {
 	}
 
 	if needXbps {
-		if err := ensureXbps(); err != nil {
+		if err := ensureXbps(updateXbps); err != nil {
 			return err
 		}
 	}

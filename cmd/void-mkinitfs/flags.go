@@ -16,6 +16,7 @@ type config struct {
 	image               string
 	reinstallBootloader bool
 	voidInitBinary      string
+	updateXbps          bool
 }
 
 // parseFlags parses and validates os.Args.
@@ -31,6 +32,7 @@ func parseFlags() (*config, error) {
 	flag.StringVar(&cfg.image, "image", "", "same as -i")
 	flag.BoolVar(&cfg.reinstallBootloader, "reinstall-bootloader", false, "with -i, also reinstall the bootloader (step 9)")
 	flag.StringVar(&cfg.voidInitBinary, "void-init-binary", "void-init", "path to a built void-init binary to install into the image")
+	flag.BoolVar(&cfg.updateXbps, "update-xbps", false, "force a re-download/re-verify of the cached xbps tools and repository keys from Void's static archive")
 
 	flag.Parse()
 
@@ -54,6 +56,9 @@ func (c *config) validate() error {
 	if c.image != "" {
 		if c.output != "" {
 			return fmt.Errorf("-i and -o are mutually exclusive")
+		}
+		if c.updateXbps {
+			return fmt.Errorf("--update-xbps only applies when building from scratch (no packages are bootstrapped with -i)")
 		}
 		if _, err := os.Stat(c.image); err != nil {
 			return fmt.Errorf("-i %s: %w", c.image, err)

@@ -51,7 +51,7 @@ func run(cfg *config) error {
 		}
 	}()
 
-	if err := preflight(cfg.image == ""); err != nil {
+	if err := preflight(cfg.image == "", cfg.updateXbps); err != nil {
 		return err
 	}
 
@@ -127,6 +127,10 @@ func runBuild(cfg *config, stack *cleanupStack) error {
 
 	target, err := mount(l, stack)
 	if err != nil {
+		return err
+	}
+
+	if err := installRepoKeys(target.root); err != nil {
 		return err
 	}
 
