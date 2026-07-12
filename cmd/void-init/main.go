@@ -49,5 +49,9 @@ func main() {
 		fatal(err)
 	}
 
+	if err := enableService("qemu-ga"); err != nil {
+		fatal(err)
+	}
+
 	logInfo("finished successfully")
 }
