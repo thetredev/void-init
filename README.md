@@ -41,7 +41,7 @@ void-init logs every notable action it takes (locating datasources, applying hos
 Jul 12 10:15:23 template-vm void-init[1234]: INFO: setting hostname to "template-vm"
 ```
 
-Since void-init runs from `/etc/rc.local`, before any syslog daemon (e.g. `socklog`) has started, there's no `/dev/log` socket available to log to yet. Instead, log lines are written to stderr - which ends up on the console during early boot - and, best-effort, appended to `/var/log/void-init.log` so the boot's actions remain inspectable afterwards. If that file can't be opened (e.g. `/var` isn't writable), void-init logs to stderr only and continues; a missing log file is never fatal.
+Since void-init runs from `/etc/rc.local`, before any syslog daemon (e.g. `socklog`) has started, there's no `/dev/log` socket available to log to yet. Instead, log lines are written to stderr - which ends up on the console during early boot - and, best-effort, appended to `/var/log/void-init/void-init.log` so the boot's actions remain inspectable afterwards. That file is rotated once it reaches 50 MiB, keeping up to 10 rotated segments alongside it (`void-init.log.1` .. `void-init.log.10`, oldest evicted first). If the log file can't be opened (e.g. `/var` isn't writable), void-init logs to stderr only and continues; a missing log file is never fatal.
 
 ## Building
 
@@ -64,7 +64,8 @@ The module builds two binaries from a `cmd/` layout, sharing `internal/vlog` (se
 | [`cmd/void-init/network.go`](cmd/void-init/network.go) | Defines `NetworkConfig`/`NetworkConfigDevice`/`Subnet` (the NoCloud `network-config` v1 subset) and `ApplyNetworkConfig`, which brings interfaces up and configures them per subnet type; also owns `/etc/dhcpcd.conf`, `/etc/resolv.conf`, and the runit service enable/disable helpers. |
 | [`cmd/void-init/hosts.go`](cmd/void-init/hosts.go) | `ApplyHosts`: renders `/etc/hosts` from the `hosts` template, and `staticAddress`, which picks the address to put in it. |
 | [`cmd/void-init/fsutil.go`](cmd/void-init/fsutil.go) | Shared file-writing helpers: `writeManagedFile` (preserves the user-editable section of a managed file) and `withSingleTrailingNewline`. |
-| [`cmd/void-init/log.go`](cmd/void-init/log.go) | Wires `void-init`'s `logInfo`/`logWarn`/`logError` to `internal/vlog`, with `/var/log/void-init.log` as the file sink. |
+| [`cmd/void-init/log.go`](cmd/void-init/log.go) | Wires `void-init`'s `logInfo`/`logWarn`/`logError` to `internal/vlog`, with `/var/log/void-init/void-init.log` as the file sink. |
+| [`internal/vlog/rotate.go`](internal/vlog/rotate.go) | `rotatingWriter`: rotates a `Logger`'s log file at 50 MiB, keeping up to 10 rotated segments. |
 | [`cmd/void-init/templates/`](cmd/void-init/templates) | `go:embed`-ed templates for generated files (see below). |
 | [`cmd/void-init/testfiles/`](cmd/void-init/testfiles) | Sample `user-data`/`network-config` fixtures, used both as documentation of the supported format and as test fixtures. |
 | [`cmd/void-mkinitfs/`](cmd/void-mkinitfs) | Builds bootable Void Linux qcow2 images with `void-init` pre-installed; see [void-mkinitfs](#void-mkinitfs) below. |

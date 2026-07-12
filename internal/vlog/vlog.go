@@ -37,9 +37,11 @@ type Logger struct {
 }
 
 // New creates a Logger for program. If logPath is non-empty, it
-// best-effort opens/appends that file as an additional sink; if it can't
-// be opened, New prints a warning to stderr and falls back to stderr
-// only. Pass "" for logPath to always log to stderr only.
+// best-effort opens/appends that file as an additional sink, rotating it
+// once it grows past 50 MiB and keeping up to 10 rotated segments
+// alongside it; if it can't be opened, New prints a warning to stderr and
+// falls back to stderr only. Pass "" for logPath to always log to stderr
+// only.
 func New(program, logPath string) *Logger {
 	l := &Logger{program: program}
 
@@ -47,13 +49,13 @@ func New(program, logPath string) *Logger {
 		return l
 	}
 
-	f, err := os.OpenFile(logPath, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o644)
+	w, err := openRotatingWriter(logPath)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "%s: warning: open %s: %v (logging to stderr only)\n", program, logPath, err)
+		fmt.Fprintf(os.Stderr, "%s: warning: %v (logging to stderr only)\n", program, err)
 		return l
 	}
 
-	l.file = f
+	l.file = w
 	return l
 }
 
