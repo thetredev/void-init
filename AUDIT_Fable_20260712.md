@@ -1,4 +1,4 @@
-1. Code optimization
+## 1. Code optimization
 
 **Applied (2 fixes):**
 - `cmd/void-initfs/cleanup.go` — fixed a real data race: `main`'s deferred `unwind()` and the signal-handler goroutine's `unwind()` could run concurrently, double-running cleanups (double `umount`/`qemu-nbd -d`) or letting the process exit mid-unmount. `cleanupStack` now has a mutex; a second caller blocks until the first finishes, then finds an empty stack.
