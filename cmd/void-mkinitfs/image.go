@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -324,7 +323,6 @@ func detectLayout() (layout, error) {
 	if err != nil {
 		return 0, fmt.Errorf("glob %sp*: %w", nbdDevice, err)
 	}
-	sort.Strings(matches)
 
 	switch len(matches) {
 	case layoutBIOS.partitionCount():
