@@ -17,6 +17,19 @@ var cloudInitSources = []string{"/dev/sr*"}
 // each candidate device read-only, check for /user-data, and stop at the
 // first match.
 func FindUserData() ([]byte, error) {
+	return findCloudInitFile("user-data")
+}
+
+// FindNetworkConfig scrapes the configured cloud-init sources for a
+// network-config file and returns its raw contents.
+func FindNetworkConfig() ([]byte, error) {
+	return findCloudInitFile("network-config")
+}
+
+// findCloudInitFile scrapes the configured cloud-init sources for the
+// given filename and returns its raw contents. It mounts each candidate
+// device read-only and stops at the first match.
+func findCloudInitFile(name string) ([]byte, error) {
 	var devices []string
 	for _, pattern := range cloudInitSources {
 		matches, err := filepath.Glob(pattern)
@@ -37,7 +50,7 @@ func FindUserData() ([]byte, error) {
 	defer os.RemoveAll(mountpoint)
 
 	for _, device := range devices {
-		data, err := readUserDataFromDevice(device, mountpoint)
+		data, err := readFileFromDevice(device, mountpoint, name)
 		if err != nil {
 			continue
 		}
@@ -46,22 +59,22 @@ func FindUserData() ([]byte, error) {
 		}
 	}
 
-	return nil, fmt.Errorf("no cloud-init user-data found on %v", devices)
+	return nil, fmt.Errorf("no cloud-init %s found on %v", name, devices)
 }
 
-// readUserDataFromDevice mounts device at mountpoint and reads user-data
+// readFileFromDevice mounts device at mountpoint and reads the named file
 // from it, if present. It returns (nil, nil) if the device mounts fine but
-// carries no user-data file.
-func readUserDataFromDevice(device, mountpoint string) ([]byte, error) {
+// carries no such file.
+func readFileFromDevice(device, mountpoint, name string) ([]byte, error) {
 	if err := syscall.Mount(device, mountpoint, "iso9660", syscall.MS_RDONLY, ""); err != nil {
 		return nil, fmt.Errorf("mount %s: %w", device, err)
 	}
 	defer syscall.Unmount(mountpoint, 0)
 
-	userDataPath := filepath.Join(mountpoint, "user-data")
-	if _, err := os.Stat(userDataPath); err != nil {
+	path := filepath.Join(mountpoint, name)
+	if _, err := os.Stat(path); err != nil {
 		return nil, nil
 	}
 
-	return os.ReadFile(userDataPath)
+	return os.ReadFile(path)
 }

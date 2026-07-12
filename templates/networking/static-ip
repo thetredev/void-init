@@ -1,7 +1,0 @@
-# disable dhcpcd
-
-# /etc/rc.local
-
-ip link set dev <interface> up
-ip addr add <ip>/<cidr> brd + dev <interface>
-ip route add default via <gw>

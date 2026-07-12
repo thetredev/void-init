@@ -22,10 +22,28 @@ func main() {
 		fmt.Fprintln(os.Stderr, "void-init:", err)
 		os.Exit(1)
 	}
+
+	var networkConfig *NetworkConfig
+	if networkConfigData, err := FindNetworkConfig(); err == nil {
+		networkConfig, err = ParseNetworkConfig(networkConfigData)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "void-init:", err)
+			os.Exit(1)
+		}
+
+		if err := ApplyNetworkConfig(networkConfig); err != nil {
+			fmt.Fprintln(os.Stderr, "void-init:", err)
+			os.Exit(1)
+		}
+	}
+
+	if err := ApplyHosts(config, staticAddress(networkConfig)); err != nil {
+		fmt.Fprintln(os.Stderr, "void-init:", err)
+		os.Exit(1)
+	}
 }
 
 // TODO:
-// - use Go template engine maybe if feasible for network configs etc
-// - provide an option to generate a bootable, cloud-init ready voidlinux rootfs from scratch*
+// 2) provide an option to generate a bootable, cloud-init ready voidlinux rootfs from scratch*
 
 // * that rootfs shall have the current release of void-init installed as well, of course

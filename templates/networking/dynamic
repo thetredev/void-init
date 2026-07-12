@@ -1,6 +1,3 @@
-# enable dhcpcd
-
-
 # Inform the DHCP server of our hostname for DDNS.
 hostname
 

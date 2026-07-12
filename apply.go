@@ -7,12 +7,21 @@ import (
 	"os/user"
 	"path/filepath"
 	"strconv"
+	"syscall"
 )
 
+const hostnamePath = "/etc/hostname"
+
 // ApplyUserData applies the parts of a parsed #cloud-config that mutate
-// local system state: the target user's password hash and SSH authorized
-// keys.
+// local system state: the hostname, the target user's password hash, and
+// SSH authorized keys.
 func ApplyUserData(u *UserData) error {
+	if u.Hostname != "" {
+		if err := applyHostname(u.Hostname); err != nil {
+			return err
+		}
+	}
+
 	if u.User == "" {
 		return nil
 	}
@@ -27,6 +36,20 @@ func ApplyUserData(u *UserData) error {
 		if err := applySSHAuthorizedKeys(u.User, u.SSHAuthorizedKeys); err != nil {
 			return err
 		}
+	}
+
+	return nil
+}
+
+// applyHostname writes /etc/hostname and applies it to the running kernel,
+// mirroring `hostnamectl set-hostname <hostname>` on a minimal system.
+func applyHostname(hostname string) error {
+	if err := os.WriteFile(hostnamePath, []byte(hostname+"\n"), 0o644); err != nil {
+		return fmt.Errorf("write %s: %w", hostnamePath, err)
+	}
+
+	if err := syscall.Sethostname([]byte(hostname)); err != nil {
+		return fmt.Errorf("set hostname: %w", err)
 	}
 
 	return nil
