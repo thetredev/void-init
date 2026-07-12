@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"os"
 )
 
@@ -16,6 +17,13 @@ func main() {
 	defer closeLog()
 
 	logInfo("starting")
+
+	// Everything void-init does needs root (mounting datasources,
+	// sethostname, chpasswd, writing under /etc), so fail with one clear
+	// message up front when run by hand as a regular user.
+	if os.Geteuid() != 0 {
+		fatal(errors.New("void-init must run as root"))
+	}
 
 	userData, err := FindUserData()
 	if err != nil {

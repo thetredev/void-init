@@ -60,7 +60,7 @@ The module builds two binaries from a `cmd/` layout, sharing `internal/vlog` (se
 | [`cmd/void-init/main.go`](cmd/void-init/main.go) | Entry point; wires together finding, parsing, and applying `user-data` and `network-config`. |
 | [`cmd/void-init/cloudinit.go`](cmd/void-init/cloudinit.go) | Locates the cloud-init NoCloud datasource: globs candidate devices (`/dev/sr*`), mounts each read-only in turn, and reads `user-data`/`network-config` off the first one that has it. |
 | [`cmd/void-init/userdata.go`](cmd/void-init/userdata.go) | Defines the `UserData` struct (the Proxmox-exposed `#cloud-config` subset) and `ParseUserData`, which validates the `#cloud-config` header and unmarshals the YAML. |
-| [`cmd/void-init/apply.go`](cmd/void-init/apply.go) | `ApplyUserData`: sets `/etc/hostname` (and the live kernel hostname), the user's password hash via `usermod`, and `~/.ssh/authorized_keys` (managed like the other generated files, via `writeManagedFile`). |
+| [`cmd/void-init/apply.go`](cmd/void-init/apply.go) | `ApplyUserData`: sets `/etc/hostname` (and the live kernel hostname), the user's password hash via `chpasswd -e`, and `~/.ssh/authorized_keys` (managed like the other generated files, via `writeManagedFile`). |
 | [`cmd/void-init/network.go`](cmd/void-init/network.go) | Defines `NetworkConfig`/`NetworkConfigDevice`/`Subnet` (the NoCloud `network-config` v1 subset) and `ApplyNetworkConfig`, which brings interfaces up and configures them per subnet type; also owns `/etc/dhcpcd.conf`, `/etc/resolv.conf`, and the runit service enable/disable helpers. |
 | [`cmd/void-init/hosts.go`](cmd/void-init/hosts.go) | `ApplyHosts`: renders `/etc/hosts` from the `hosts` template, and `staticAddress`, which picks the address to put in it. |
 | [`cmd/void-init/fsutil.go`](cmd/void-init/fsutil.go) | Shared file-writing helpers: `writeManagedFile` (preserves the user-editable section of a managed file) and `withSingleTrailingNewline`. |
@@ -81,7 +81,7 @@ See [`cmd/void-init/testfiles/user-data`](cmd/void-init/testfiles/user-data) for
 | `fqdn` | Used (together with `hostname`) when rendering `/etc/hosts`. |
 | `manage_etc_hosts` | Must be `true` for void-init to touch `/etc/hosts` at all. |
 | `user` | The local user password/SSH keys below are applied to. |
-| `password` | A password *hash* (not plaintext), applied via `usermod -p`. |
+| `password` | A password *hash* (not plaintext), applied via `chpasswd -e` — piped on stdin, so the hash never appears on a command line. |
 | `ssh_authorized_keys` | List of public keys written to `~/.ssh/authorized_keys` for `user`. |
 
 `disable_root` and `chpasswd.expire` are parsed but currently unused.
@@ -120,7 +120,7 @@ On each run, `writeManagedFile` (in [`fsutil.go`](fsutil.go)) regenerates everyt
 go test ./...
 ```
 
-Tests parse the fixtures in [`cmd/void-init/testfiles/`](cmd/void-init/testfiles) and exercise pure logic like `subnetAddressCIDR`. Nothing that touches the live system (mounting devices, running `ip`/`usermod`, writing to `/etc`, or - for `void-mkinitfs` - `qemu-nbd`/`sgdisk`/`systemd-nspawn`) is covered by automated tests - those paths are meant to be exercised on an actual VM/host.
+Tests parse the fixtures in [`cmd/void-init/testfiles/`](cmd/void-init/testfiles) and exercise pure logic like `subnetAddressCIDR`. Nothing that touches the live system (mounting devices, running `ip`/`chpasswd`, writing to `/etc`, or - for `void-mkinitfs` - `qemu-nbd`/`sgdisk`/`systemd-nspawn`) is covered by automated tests - those paths are meant to be exercised on an actual VM/host.
 
 ## `void-mkinitfs`
 

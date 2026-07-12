@@ -32,7 +32,7 @@ A `cmd/` layout with two binaries sharing `internal/vlog` as their only common c
 | `main.go` | Entry point: find → parse → apply `user-data`, then `network-config`, then `/etc/hosts`, then enable the `qemu-ga` service. Bookends the run with `logInfo("starting")`/`logInfo("finished successfully")`; any error goes through `fatal(err)` (logs at ERROR, closes the log, `os.Exit(1)`). |
 | `cloudinit.go` | `FindUserData`/`FindNetworkConfig`: glob `/dev/sr*`, mount each candidate read-only as `iso9660` in turn, read the named file off the first one that has it. |
 | `userdata.go` | `UserData` struct (the Proxmox-exposed `#cloud-config` subset) + `ParseUserData` (validates the `#cloud-config` header, unmarshals YAML). |
-| `apply.go` | `ApplyUserData`: `/etc/hostname` + live `sethostname(2)`, password hash via `usermod -p`, SSH authorized keys (via `writeManagedFile`, see below). |
+| `apply.go` | `ApplyUserData`: `/etc/hostname` + live `sethostname(2)`, password hash via `chpasswd -e` (piped on stdin so the hash never hits argv/`/proc/<pid>/cmdline`), SSH authorized keys (via `writeManagedFile`, see below). |
 | `network.go` | `NetworkConfig`/`NetworkConfigDevice`/`Subnet` (NoCloud `network-config` v1 subset) + `ApplyNetworkConfig`: resolves `physical` entries to a real interface by MAC (not by `name` — predictable interface naming isn't guaranteed to match what cloud-init supplied), brings interfaces up, hands DHCP/SLAAC subnet types to `dhcpcd`, applies `static`/`static6` directly via `ip addr add`/`ip route add`, merges all nameservers into one `/etc/resolv.conf` write. |
 | `runit.go` | `svDir`/`runsvdirCurrent` (the runit layout: `/etc/sv/<name>` holds each service's definition, `/etc/runit/runsvdir/current/` is the active runsvdir) + `enableService`/`disableService`, both package-private: `enableService` symlinks `svDir/<name>` into `runsvdirCurrent`, mirroring `ln -s /etc/sv/<name> /etc/runit/runsvdir/current/`; `disableService` removes that symlink, mirroring `rm /etc/runit/runsvdir/current/<name>`. Both are idempotent — already-enabled/-disabled is logged and treated as success, not an error. Call sites: `network.go`'s `applyDynamicNetwork` enables `dhcpcd`, `applyStaticNetwork` disables it; `main.go` enables `qemu-ga` unconditionally. |
 | `hosts.go` | `ApplyHosts`: renders `/etc/hosts` from a template; `staticAddress` picks the address to put in it (first static subnet found, else the `127.0.1.1` loopback alias). |
@@ -141,7 +141,11 @@ boot.
 Cloud-Init GUI page exposes, not the full cloud-init spec):
 - `user-data`: a `#cloud-config` YAML document (magic first line required). Supported keys:
   `hostname`, `fqdn`, `manage_etc_hosts` (must be `true` for `void-init` to touch `/etc/hosts` at
-  all), `user`, `password` (a hash, not plaintext — applied via `usermod -p`), `ssh_authorized_keys`.
+  all), `user`, `password` (a hash, not plaintext — applied via `chpasswd -e` on stdin), `ssh_authorized_keys`.
+  Parsed values are validated at parse time (`UserData.validate` in `userdata.go`): whitespace/control
+  characters are rejected in hostname/fqdn/user/password (plus `:` and a leading `-` in the
+  username), and control characters in SSH keys — YAML strings can legally contain newlines, and
+  these values get spliced into single-line files and a `user:hash` chpasswd record.
   `disable_root` and `chpasswd.expire` are parsed but currently unused.
 - `network-config`: a `version: 1` NoCloud document. `config` entries are either `type: physical`
   (a `mac_address` + list of `subnets`; matched to a real interface by MAC, not by the `name`
@@ -156,7 +160,7 @@ Cloud-Init GUI page exposes, not the full cloud-init spec):
 **Testing philosophy:** only pure logic gets automated tests — YAML parsing against the
 `testfiles/` fixtures, `subnetAddressCIDR`'s address/CIDR math, and, in `cmd/void-mkinitfs/`,
 CLI flag validation (`flags_test.go`) and pure helpers like `byUUIDSymlink` (`bootloader_test.go`).
-Anything that touches the live system (mounting devices, running `ip`/`usermod`/`sgdisk`, writing
+Anything that touches the live system (mounting devices, running `ip`/`chpasswd`/`sgdisk`, writing
 to `/etc`, `qemu-nbd`/`systemd-nspawn` invocations) is *not* unit tested; it's meant to be
 exercised on an actual VM/host.
 

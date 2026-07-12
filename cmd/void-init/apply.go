@@ -58,14 +58,21 @@ func applyHostname(hostname string) error {
 	return nil
 }
 
-// applyPassword sets the given user's password hash via usermod, mirroring
-// `usermod -p '<hash>' <user>`.
+// applyPassword sets the given user's password hash by piping one
+// "user:hash" record into `chpasswd -e` on stdin. usermod -p would be
+// the more obvious tool, but it takes the hash as a command-line
+// argument, and argv is world-readable via /proc/<pid>/cmdline for as
+// long as the command runs - stdin leaks nothing. The record format is
+// safe to build by concatenation because ParseUserData rejects
+// usernames containing ':' and any whitespace/control characters in
+// either field.
 func applyPassword(username, hash string) error {
 	logInfo("setting password for user %s", username)
 
-	cmd := exec.Command("usermod", "-p", hash, username)
+	cmd := exec.Command("chpasswd", "-e")
+	cmd.Stdin = strings.NewReader(username + ":" + hash + "\n")
 	if output, err := cmd.CombinedOutput(); err != nil {
-		return fmt.Errorf("usermod %s: %w: %s", username, err, output)
+		return fmt.Errorf("chpasswd %s: %w: %s", username, err, output)
 	}
 
 	return nil

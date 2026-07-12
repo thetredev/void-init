@@ -34,6 +34,15 @@ func writeManagedFile(path, rendered string, perm os.FileMode) error {
 		return fmt.Errorf("write %s: %w", path, err)
 	}
 
+	// os.WriteFile applies perm only when it creates the file (masked by
+	// umask); a pre-existing file keeps whatever mode it had. The explicit
+	// chmod makes perm authoritative either way - e.g. an authorized_keys
+	// that already existed with looser permissions is tightened to 0600
+	// rather than left as found.
+	if err := os.Chmod(path, perm); err != nil {
+		return fmt.Errorf("chmod %s: %w", path, err)
+	}
+
 	logInfo("wrote %s", path)
 
 	return nil

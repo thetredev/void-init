@@ -61,7 +61,7 @@ underlying habits it revealed still apply generally:
 - Destructive/system-affecting actions are treated cautiously here: a request to actually run the
   built `void-init` binary was declined via session permission settings earlier in this project.
   Treat anything that mounts devices, changes the live hostname, writes to `/etc`, runs
-  `ip`/`usermod`, touches loop/nbd devices, partitions disks with `sgdisk`, or runs
+  `ip`/`chpasswd`, touches loop/nbd devices, partitions disks with `sgdisk`, or runs
   `systemd-nspawn` against a real block device, as needing explicit confirmation before
   *executing*, not just before proposing. The user runs as root on their own machine and is
   comfortable with that, but still wants blast-radius-aware behavior from the agent, per the
@@ -72,7 +72,7 @@ underlying habits it revealed still apply generally:
 - This checkout has no `.claude/settings.local.json` — it's gitignored (`/.claude` in
   `.gitignore`), so it's per-checkout and may or may not exist depending on where you're running.
   Don't assume any particular Bash allowlist is pre-granted; if one isn't present, most
-  system-level commands relevant to this project (`mount`, `ip`, `usermod`, `qemu-nbd`, `sgdisk`,
+  system-level commands relevant to this project (`mount`, `ip`, `chpasswd`, `qemu-nbd`, `sgdisk`,
   `systemd-nspawn`) will prompt for confirmation, as intended.
 - Build artifacts (`void-init`, `void-mkinitfs`, under `build/` via `Makefile` or at the repo root
   via `go build ./...`) are gitignored (`.gitignore`'s `/build`, `/void-init`, `/void-mkinitfs`

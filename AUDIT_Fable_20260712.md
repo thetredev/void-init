@@ -28,6 +28,8 @@
 
 Also verified: no shell string interpolation anywhere in `void-init` (all `exec.Command` argv); repo keys are pre-seeded so xbps signature verification is active from the first package; download refuses anything not in `sha256sums.txt`.
 
+*(update: Findings 2, 3, 5, and 6 are already fixed by Fable)*
+
 **Findings, ranked:**
 1. **Untrusted-image caveat (design note, not a bug):** `-i --reinstall-bootloader` runs `grub-install` *from the image* as root via nspawn (no user namespacing), and any `-i` mounts the image's ext4 (kernel parsing surface). Fine for the intended self-built images; worth one README sentence: "only point `-i` at images you built."
 2. **`usermod -p <hash>`** exposes the hash in `/proc/*/cmdline` while usermod runs. Very low severity here (early boot, before any login is possible, hash not plaintext), and easily fixed by piping `user:hash` into `chpasswd -e` via stdin if you ever care.
@@ -36,4 +38,4 @@ Also verified: no shell string interpolation anywhere in `void-init` (all `exec.
 5. **`http.Get` has no timeout** — a stalled server hangs a build forever. Robustness fix: an `http.Client` with a generous timeout.
 6. Completeness only: `grubMkconfigCommand` interpolates blkid UUIDs into `sh -c` — safe (ext UUIDs are canonical hex) and moot given finding 1; `copyFile`'s perm applies only at creation (`O_CREATE|O_TRUNC` keeps an existing file's mode — currently always the same value, but a footgun if reused); `os.WriteFile` modes are umask-masked (with root's 022 they're exact; a stricter umask only ever tightens, never loosens).
 
-Given that neither binary runs as a service and every write is root-owned with correct modes, the practical attack surface reduces to the two caveats in findings 1–2.
+Your premise holds: given neither binary runs as a service and every write is root-owned with correct modes, the practical attack surface reduces to the two caveats in findings 1–2.

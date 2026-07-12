@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"os"
 	"os/exec"
 )
 
@@ -37,6 +38,13 @@ var requiredTools = []string{
 // that refresh even if both are
 // already present; assumeYes (-y/--yes) skips its download confirmation.
 func preflight(needXbps, updateXbps, assumeYes bool) error {
+	// Everything downstream needs root (qemu-nbd, sgdisk, mkfs, mount,
+	// systemd-nspawn), so fail with one clear message up front instead of
+	// with whichever tool happens to hit EPERM first, partway through.
+	if os.Geteuid() != 0 {
+		return fmt.Errorf("void-mkinitfs must run as root")
+	}
+
 	var missing []string
 	for _, tool := range requiredTools {
 		if _, err := exec.LookPath(tool); err != nil {

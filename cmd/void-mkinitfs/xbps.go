@@ -12,6 +12,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
 // staticXbpsFilename/staticXbpsURL are Void's static xbps tarball for a
@@ -233,9 +234,28 @@ func verifyChecksum(sums []byte, digest string) error {
 	return fmt.Errorf("downloaded %s (sha256 %s) not listed in sha256sums.txt - refusing to trust it", staticXbpsFilename, digest)
 }
 
+// httpClient bounds every download: a server that accepts the
+// connection but never answers fails within seconds
+// (ResponseHeaderTimeout) instead of hanging the build indefinitely,
+// while the overall Timeout is generous enough to pull the
+// multi-megabyte static tarball over a slow link. Cloning
+// http.DefaultTransport keeps its proxy-from-environment support and
+// dial/TLS-handshake timeouts.
+var httpClient = newHTTPClient()
+
+func newHTTPClient() *http.Client {
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	transport.ResponseHeaderTimeout = 30 * time.Second
+
+	return &http.Client{
+		Timeout:   15 * time.Minute,
+		Transport: transport,
+	}
+}
+
 // download fetches url and writes its body to w.
 func download(url string, w io.Writer) error {
-	resp, err := http.Get(url)
+	resp, err := httpClient.Get(url)
 	if err != nil {
 		return fmt.Errorf("GET %s: %w", url, err)
 	}
