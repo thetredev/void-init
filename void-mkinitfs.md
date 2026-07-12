@@ -73,7 +73,7 @@ void-mkinitfs -i <image.qcow2>
   scratch — see step 10. Mutually exclusive with `-o`: `-i` operates on the given image in
   place, it doesn't produce a separate output file.
 
-Preflight, before doing anything else: check `exec.LookPath` for every external tool the pipeline needs (`xbps-install`, `xbps-reconfigure`, `systemd-nspawn`, `qemu-img`, `qemu-nbd`, `sgdisk`, `mkfs.vfat`, `mkfs.ext2`, `mkfs.ext4` `partprobe`, `blkid`, `grub-install`, `grub-mkconfig`) and fail with one clear error listing everything missing, rather than dying halfway through the pipeline on the first missing tool. If `xbps-install`/`xbps-reconfigure` are not available in `/usr/local/bin` or on `PATH`, `void-mkinitfs` will ask for permissions to download static builds from [https://repo-default.voidlinux.org/static](https://repo-default.voidlinux.org/static) into `/usr/local/bin`. The check for those two binaries specifically is performed *last*.
+Preflight, before doing anything else: check `exec.LookPath` for every external tool the pipeline needs (`xbps-install`, `xbps-reconfigure`, `systemd-nspawn`, `qemu-img`, `qemu-nbd`, `sgdisk`, `mkfs.vfat`, `mkfs.ext2`, `mkfs.ext4` `partprobe`, `udevadm`, `blkid`, `grub-install`, `grub-mkconfig`) and fail with one clear error listing everything missing, rather than dying halfway through the pipeline on the first missing tool. If `xbps-install`/`xbps-reconfigure` are not available in `/usr/local/bin` or on `PATH`, `void-mkinitfs` will ask for permissions to download static builds from [https://repo-default.voidlinux.org/static](https://repo-default.voidlinux.org/static) into `/usr/local/bin`. The check for those two binaries specifically is performed *last*.
 
 ## Cleanup strategy
 
@@ -146,7 +146,7 @@ sgdisk -n 4:0:0     -t 4:8300 -c 4:"root"      /dev/nbd0
 
 The `ef02` BIOS-boot partition is kept on the `--efi` layout too, as it matches what Proxmox VE does to sidestep firmware/boot-layout edge cases at the cost of just 1M.
 
-After partitioning, run `partprobe /dev/nbd0` (kernel needs to be told to re-read the table before `/dev/nbd0p1`../pN` device nodes reflect it) before touching those nodes.
+After partitioning, run `partprobe /dev/nbd0` (kernel needs to be told to re-read the table before `/dev/nbd0p1`../pN` device nodes reflect it) before touching those nodes. `partprobe` only triggers that kernel re-read and returns — the `/dev/nbd0pN` nodes are then created asynchronously by udev processing the resulting uevents, so also run `udevadm settle` right after it (same race applies to step 10's partition-count detection, which runs `partprobe` too) before touching those nodes.
 
 ### 3. Filesystems
 

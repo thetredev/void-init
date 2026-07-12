@@ -200,6 +200,15 @@ func partition(l layout) error {
 		return err
 	}
 
+	// partprobe only triggers the kernel's BLKRRPART re-read and returns;
+	// the /dev/nbd0pN device nodes themselves are created afterward,
+	// asynchronously, by udev processing the resulting uevents. Without
+	// this, callers that touch those nodes right after partition()
+	// returns (e.g. mkfs) can race udev and find them missing.
+	if _, err := runCommand("udevadm", "settle"); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -293,6 +302,12 @@ func mountAt(dev, dir string, stack *cleanupStack) error {
 // scheme will mount the wrong partition at the wrong path silently.
 func detectLayout() (layout, error) {
 	if _, err := runCommand("partprobe", nbdDevice); err != nil {
+		return 0, err
+	}
+
+	// See partition()'s equivalent call: the device nodes glob below reads
+	// are created asynchronously by udev after partprobe returns.
+	if _, err := runCommand("udevadm", "settle"); err != nil {
 		return 0, err
 	}
 
