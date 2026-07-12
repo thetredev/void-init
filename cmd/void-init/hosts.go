@@ -7,7 +7,7 @@ import (
 	"text/template"
 )
 
-//go:embed templates/hosts
+//go:embed templates/etc/hosts
 var hostsTemplate string
 
 // hostsPath is the location of the system hosts file.

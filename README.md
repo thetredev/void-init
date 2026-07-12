@@ -101,8 +101,8 @@ All nameservers/search domains gathered across the whole config (from both stati
 
 Two files are `go:embed`-ed at build time and rendered/copied at runtime:
 
-- [`templates/hosts`](templates/hosts) - a Go `text/template` for `/etc/hosts`, substituting `{{.Address}}`, `{{.FQDN}}`, and `{{.Hostname}}`.
-- [`templates/dhcpcd`](templates/dhcpcd) - a static `dhcpcd.conf` written verbatim for any interface configured via DHCP/SLAAC.
+- [`templates/etc/hosts`](templates/etc/hosts) - a Go `text/template` for `/etc/hosts`, substituting `{{.Address}}`, `{{.FQDN}}`, and `{{.Hostname}}`.
+- [`templates/etc/dhcpcd.conf`](templates/etc/dhcpcd.conf) - a static `dhcpcd.conf` written verbatim for any interface configured via DHCP/SLAAC.
 
 ## User-editable sections
 

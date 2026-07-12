@@ -12,7 +12,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-//go:embed templates/dhcpcd
+//go:embed templates/etc/dhcpcd.conf
 var dynamicNetworkTemplate string
 
 const (
