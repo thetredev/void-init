@@ -6,10 +6,10 @@ import (
 	"path/filepath"
 )
 
-//go:embed templates/reboot.sh
+//go:embed templates/etc/bash/bashrc.d/reboot.sh
 var rebootScriptTemplate string
 
-//go:embed templates/poweroff.sh
+//go:embed templates/etc/bash/bashrc.d/poweroff.sh
 var poweroffScriptTemplate string
 
 // configureShutdownAliases writes reboot.sh and poweroff.sh into

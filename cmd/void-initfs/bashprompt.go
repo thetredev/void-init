@@ -8,10 +8,10 @@ import (
 	"regexp"
 )
 
-//go:embed templates/profile
+//go:embed templates/root/profile
 var profileTemplate string
 
-//go:embed templates/bashrc
+//go:embed templates/root/bashrc
 var bashrcTemplate string
 
 // bashPromptLine is the PS1 assignment void-init expects in /root/.bashrc,

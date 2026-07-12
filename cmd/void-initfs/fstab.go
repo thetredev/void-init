@@ -7,7 +7,7 @@ import (
 	"text/template"
 )
 
-//go:embed templates/fstab
+//go:embed templates/etc/fstab
 var fstabTemplate string
 
 // fstabTemplateData is the set of values substituted into the fstab
