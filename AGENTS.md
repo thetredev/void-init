@@ -191,7 +191,7 @@ High-level facts an agent needs before writing any code under a future `cmd/void
 - **Preflight:** check `exec.LookPath` for every external tool up front, fail with one combined
   error listing everything missing, rather than dying halfway through the pipeline. If
   `xbps-install`/`xbps-reconfigure` specifically aren't found, offer to download static builds
-  from `repo-default.voidlinux.org/static` into `~/.local/bin` — that check runs last.
+  from `repo-default.voidlinux.org/static` into `/usr/local/bin` — that check runs last.
 - **Explicitly out of scope this iteration:** cross-compilation, any output format other than
   qcow2, a non-`systemd-nspawn` (plain chroot) fallback for non-systemd hosts.
 - Several package names in the plan's proposed set are marked "verify against the live repo" —

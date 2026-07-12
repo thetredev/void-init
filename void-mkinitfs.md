@@ -73,7 +73,7 @@ void-mkinitfs -i <image.qcow2>
   scratch — see step 10. Mutually exclusive with `-o`: `-i` operates on the given image in
   place, it doesn't produce a separate output file.
 
-Preflight, before doing anything else: check `exec.LookPath` for every external tool the pipeline needs (`xbps-install`, `xbps-reconfigure`, `systemd-nspawn`, `qemu-img`, `qemu-nbd`, `sgdisk`, `mkfs.vfat`, `mkfs.ext2`, `mkfs.ext4` `partprobe`, `blkid`, `grub-install`, `grub-mkconfig`) and fail with one clear error listing everything missing, rather than dying halfway through the pipeline on the first missing tool. If `xbps-install`/`xbps-reconfigure` are not available in `~/.local/bin` or on `PATH`, `void-mkinitfs` will ask for permissions to download static builds from [https://repo-default.voidlinux.org/static](https://repo-default.voidlinux.org/static) into `~/.local/bin`. The check for those two binaries specifically is performed *last*.
+Preflight, before doing anything else: check `exec.LookPath` for every external tool the pipeline needs (`xbps-install`, `xbps-reconfigure`, `systemd-nspawn`, `qemu-img`, `qemu-nbd`, `sgdisk`, `mkfs.vfat`, `mkfs.ext2`, `mkfs.ext4` `partprobe`, `blkid`, `grub-install`, `grub-mkconfig`) and fail with one clear error listing everything missing, rather than dying halfway through the pipeline on the first missing tool. If `xbps-install`/`xbps-reconfigure` are not available in `/usr/local/bin` or on `PATH`, `void-mkinitfs` will ask for permissions to download static builds from [https://repo-default.voidlinux.org/static](https://repo-default.voidlinux.org/static) into `/usr/local/bin`. The check for those two binaries specifically is performed *last*.
 
 ## Cleanup strategy
 

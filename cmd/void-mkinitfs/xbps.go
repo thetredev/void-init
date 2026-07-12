@@ -22,27 +22,20 @@ const staticXbpsURL = "https://repo-default.voidlinux.org/static/xbps-static-lat
 var xbpsTools = []string{"xbps-install", "xbps-reconfigure"}
 
 // localBinDir is where static xbps binaries are installed if they can't
-// be found anywhere on PATH.
-func localBinDir() (string, error) {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return "", fmt.Errorf("determine home directory: %w", err)
-	}
-	return filepath.Join(home, ".local", "bin"), nil
-}
+// be found anywhere on PATH. void-mkinitfs runs as root, so this targets
+// the same system-wide location as a manual "make install" of locally
+// built tools, rather than a per-user directory.
+const localBinDir = "/usr/local/bin"
 
 // ensureXbps makes sure xbps-install and xbps-reconfigure are reachable:
-// already on PATH, already installed in ~/.local/bin, or downloaded into
-// ~/.local/bin from Void's static xbps tarball after asking the user for
-// permission.
+// already on PATH, already installed in /usr/local/bin, or downloaded
+// into /usr/local/bin from Void's static xbps tarball after asking the
+// user for permission.
 func ensureXbps() error {
-	bin, err := localBinDir()
-	if err != nil {
-		return err
-	}
+	bin := localBinDir
 
-	// Make a prior install into ~/.local/bin visible to LookPath, in case
-	// it isn't already on this process's PATH.
+	// Make a prior install into /usr/local/bin visible to LookPath, in
+	// case it isn't already on this process's PATH.
 	extendPath(bin)
 
 	var missing []string

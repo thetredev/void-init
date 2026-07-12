@@ -30,7 +30,7 @@ var requiredTools = []string{
 // available before any work starts. If needXbps is set (building from
 // scratch, as opposed to reusing an image via -i), it also ensures
 // xbps-install/xbps-reconfigure are available, offering to download
-// static builds into ~/.local/bin if they're missing anywhere on PATH -
+// static builds into /usr/local/bin if they're missing anywhere on PATH -
 // that check runs last, per void-mkinitfs.md's CLI section.
 func preflight(needXbps bool) error {
 	var missing []string
