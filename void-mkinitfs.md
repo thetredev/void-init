@@ -278,24 +278,25 @@ Write `<tmp>/etc/rc.local`:
 
 ### 9. Bootloader, also via `systemd-nspawn`
 
-`grub-install` needs to see the real block device (`/dev/nbd0`) to write the boot sector / determine the device map — nspawn's private `/dev` doesn't include host block devices by default, so this step needs an explicit bind mount:
+`grub-install` needs to see the real block device (`/dev/nbd0`) to write the boot sector / determine the device map — nspawn's private `/dev` doesn't include host block devices by default, so this step needs explicit bind mounts, of both `/dev/nbd0` itself *and every partition node* (`/dev/nbd0p1`, `p2`, ...). `grub-probe` canonicalizes the specific device backing `/boot`'s mount (`/dev/nbd0pN`, per `/proc/self/mountinfo`) while determining the device map, and fails with "failed to get canonical path" if that node isn't present too — binding only the parent disk isn't enough:
 
 ```
 # --bios
-systemd-nspawn -D <tmp> --bind=/dev/nbd0 -- \
+systemd-nspawn -D <tmp> --bind=/dev/nbd0 --bind=/dev/nbd0p1 --bind=/dev/nbd0p2 --bind=/dev/nbd0p3 -- \
   grub-install --target=i386-pc --boot-directory=/boot /dev/nbd0
 
 # --efi
-systemd-nspawn -D <tmp> --bind=/dev/nbd0 -- \
+systemd-nspawn -D <tmp> --bind=/dev/nbd0 --bind=/dev/nbd0p1 --bind=/dev/nbd0p2 --bind=/dev/nbd0p3 --bind=/dev/nbd0p4 -- \
   grub-install --target=x86_64-efi --efi-directory=/boot/efi --boot-directory=/boot --removable
 ```
 
 `--removable` on the EFI install writes the fallback `\EFI\BOOT\BOOTX64.EFI` path instead of registering an NVRAM boot entry via `efibootmgr` — this image isn't running on real firmware at build time, so there's no NVRAM to register against; `--removable` is what makes it bootable "as-is" once attached to a VM.
 
-Then, same nspawn invocation or a follow-up one:
+Then, a follow-up nspawn invocation with the *same* bind mounts as above — `grub-mkconfig` also runs `grub-probe`, this time against `/` (`/dev/nbd0p3` on `--bios`), so it needs the partition nodes visible too, not just the first invocation:
 
 ```
-systemd-nspawn -D <tmp> -- grub-mkconfig -o /boot/grub/grub.cfg
+systemd-nspawn -D <tmp> --bind=/dev/nbd0 --bind=/dev/nbd0p1 --bind=/dev/nbd0p2 --bind=/dev/nbd0p3 -- \
+  grub-mkconfig -o /boot/grub/grub.cfg
 ```
 
 ### 10. `-i <qcow2 path>`: reuse an existing image instead of building a new one

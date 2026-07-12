@@ -3,12 +3,21 @@ package main
 import "fmt"
 
 // installBootloader installs GRUB into root and generates its config, per
-// void-mkinitfs.md step 9. grub-install needs to see the real block
-// device to write the boot sector / determine the device map, which
-// nspawn's private /dev doesn't include by default, hence the explicit
-// bind mount.
+// void-mkinitfs.md step 9. grub-install/grub-probe need to see the real
+// block device to write the boot sector / determine the device map,
+// which nspawn's private /dev doesn't include by default, hence the
+// explicit bind mounts - of both nbdDevice itself and every partition
+// node. grub-probe canonicalizes whatever device backs the mount it's
+// asked about (/dev/nbd0pN, per /proc/self/mountinfo) and fails if that
+// specific node isn't present, not just the parent disk - grub-install
+// probes /boot (nbd0p2 on --bios), grub-mkconfig probes / too (nbd0p3),
+// so both nspawn invocations need the same full bind list, not just the
+// first.
 func installBootloader(root string, l layout) error {
 	bind := []string{"--bind=" + nbdDevice}
+	for n := 1; n <= l.partitionCount(); n++ {
+		bind = append(bind, "--bind="+partitionDevice(n))
+	}
 
 	var grubArgs []string
 	switch l {
@@ -28,5 +37,5 @@ func installBootloader(root string, l layout) error {
 		return err
 	}
 
-	return nspawn(root, nil, "grub-mkconfig", "-o", "/boot/grub/grub.cfg")
+	return nspawn(root, bind, "grub-mkconfig", "-o", "/boot/grub/grub.cfg")
 }
