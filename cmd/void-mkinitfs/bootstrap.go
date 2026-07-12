@@ -20,7 +20,7 @@ func repoAndArch(libc string) (repo, arch string, err error) {
 // before relying on this list - see the plan's "Open items" section.
 func packages(l layout) []string {
 	common := []string{
-		"base-minimal", "linux", "dracut", "runit-void", "dhcpcd",
+		"base-system", "linux", "dracut", "runit-void", "dhcpcd",
 		"iproute2", "openssh", "shadow", "e2fsprogs", "dosfstools",
 		"ca-certificates", "iana-etc",
 	}
