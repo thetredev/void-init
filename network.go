@@ -6,6 +6,7 @@ import (
 	"net"
 	"os"
 	"os/exec"
+	"strconv"
 	"strings"
 
 	"gopkg.in/yaml.v3"
@@ -31,16 +32,22 @@ type NetworkConfig struct {
 	Config  []NetworkConfigDevice `yaml:"config"`
 }
 
-// NetworkConfigDevice describes a single physical network interface and
-// the subnets attached to it.
+// NetworkConfigDevice describes one entry of the network-config "config"
+// list. Depending on Type, it is either a physical network interface with
+// subnets attached to it (Type == "physical"), or a global nameserver
+// entry (Type == "nameserver") carrying its own Address/Search lists.
 type NetworkConfigDevice struct {
-	Type    string   `yaml:"type"`
-	Name    string   `yaml:"name"`
-	Subnets []Subnet `yaml:"subnets"`
+	Type       string   `yaml:"type"`
+	Name       string   `yaml:"name"`
+	MacAddress string   `yaml:"mac_address"`
+	Subnets    []Subnet `yaml:"subnets"`
+	Address    []string `yaml:"address"`
+	Search     []string `yaml:"search"`
 }
 
 // Subnet describes one address assignment for an interface: either "dhcp"
-// or "static" with an address/netmask/gateway.
+// or "static" with an address/gateway. The address may carry its own CIDR
+// prefix (e.g. "fd8c::1/64"), in which case Netmask is left empty.
 type Subnet struct {
 	Type           string   `yaml:"type"`
 	Address        string   `yaml:"address"`
@@ -63,36 +70,54 @@ func ParseNetworkConfig(data []byte) (*NetworkConfig, error) {
 // ApplyNetworkConfig renders and applies the networking setup for every
 // interface in the config: DHCP interfaces enable dhcpcd via runit and get
 // /etc/dhcpcd.conf, static interfaces disable dhcpcd and get their
-// addressing applied through /etc/rc.local.
+// addressing applied directly via `ip`. Nameservers gathered from static
+// subnets and any top-level "nameserver" entries are merged into a single
+// /etc/resolv.conf write at the end.
 func ApplyNetworkConfig(nc *NetworkConfig) error {
-	for _, device := range nc.Config {
-		if device.Type != "physical" {
-			continue
-		}
+	var nameservers, search []string
 
-		for _, subnet := range device.Subnets {
-			switch subnet.Type {
-			case "dhcp", "dhcp4", "dhcp6", "ipv6_slaac", "ipv6_dhcpv6-stateless", "ipv6_dhcpv6-stateful":
-				if err := applyDynamicNetwork(); err != nil {
-					return err
+	for _, device := range nc.Config {
+		switch device.Type {
+		case "physical":
+			for _, subnet := range device.Subnets {
+				switch subnet.Type {
+				case "dhcp", "dhcp4", "dhcp6", "ipv6_slaac", "ipv6_dhcpv6-stateless", "ipv6_dhcpv6-stateful":
+					if err := applyDynamicNetwork(device.Name); err != nil {
+						return err
+					}
+				case "static", "static6":
+					if err := applyStaticNetwork(device.Name, subnet); err != nil {
+						return err
+					}
+					nameservers = append(nameservers, subnet.DNSNameservers...)
+					search = append(search, subnet.DNSSearch...)
+				default:
+					return fmt.Errorf("unsupported subnet type %q for interface %s", subnet.Type, device.Name)
 				}
-			case "static", "static6":
-				if err := applyStaticNetwork(device.Name, subnet); err != nil {
-					return err
-				}
-			default:
-				return fmt.Errorf("unsupported subnet type %q for interface %s", subnet.Type, device.Name)
 			}
+		case "nameserver":
+			nameservers = append(nameservers, device.Address...)
+			search = append(search, device.Search...)
+		default:
+			return fmt.Errorf("unsupported config type %q", device.Type)
 		}
 	}
 
-	return nil
+	return applyResolvConf(nameservers, search)
 }
 
-// applyDynamicNetwork renders dhcpcd.conf and enables the dhcpcd service.
-func applyDynamicNetwork() error {
-	if err := os.WriteFile(dhcpcdConfPath, []byte(dynamicNetworkTemplate), 0o644); err != nil {
-		return fmt.Errorf("write %s: %w", dhcpcdConfPath, err)
+// applyDynamicNetwork brings iface up, renders dhcpcd.conf, and enables the
+// dhcpcd service. dhcpcd only manages interfaces that are already up (it
+// won't bring one up itself), and it also drives IPv6 SLAAC/RA handling, so
+// this covers dhcp as well as ipv6_slaac/dhcpv6 subnet types.
+func applyDynamicNetwork(iface string) error {
+	cmd := exec.Command("ip", "link", "set", "dev", iface, "up")
+	if output, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("ip link set dev %s up: %w: %s", iface, err, output)
+	}
+
+	if err := writeManagedFile(dhcpcdConfPath, dynamicNetworkTemplate, 0o644); err != nil {
+		return err
 	}
 
 	return enableService("dhcpcd")
@@ -104,16 +129,25 @@ func applyDynamicNetwork() error {
 // runs the same commands rc.local used to carry rather than writing them
 // out to be run later.
 func applyStaticNetwork(iface string, subnet Subnet) error {
-	cidr, err := netmaskToCIDR(subnet.Netmask)
+	address, cidr, err := subnetAddressCIDR(subnet)
 	if err != nil {
 		return fmt.Errorf("interface %s: %w", iface, err)
 	}
 
+	addrCmd := []string{"ip", "addr", "add", fmt.Sprintf("%s/%d", address, cidr)}
+	if net.ParseIP(address).To4() != nil {
+		addrCmd = append(addrCmd, "brd", "+")
+	}
+	addrCmd = append(addrCmd, "dev", iface)
+
 	commands := [][]string{
 		{"ip", "link", "set", "dev", iface, "up"},
-		{"ip", "addr", "add", fmt.Sprintf("%s/%d", subnet.Address, cidr), "brd", "+", "dev", iface},
-		{"ip", "route", "add", "default", "via", subnet.Gateway},
+		addrCmd,
 	}
+	if subnet.Gateway != "" {
+		commands = append(commands, []string{"ip", "route", "add", "default", "via", subnet.Gateway})
+	}
+
 	for _, args := range commands {
 		cmd := exec.Command(args[0], args[1:]...)
 		if output, err := cmd.CombinedOutput(); err != nil {
@@ -121,11 +155,32 @@ func applyStaticNetwork(iface string, subnet Subnet) error {
 		}
 	}
 
-	if err := disableService("dhcpcd"); err != nil {
-		return err
+	return disableService("dhcpcd")
+}
+
+// subnetAddressCIDR returns the address and CIDR prefix length to assign
+// for subnet. The address may already carry its own "/<prefix>" suffix
+// (e.g. "fd8c::1/64"), in which case it's used as-is; otherwise the prefix
+// is derived from the dotted-decimal Netmask field.
+func subnetAddressCIDR(subnet Subnet) (string, int, error) {
+	if address, prefix, ok := strings.Cut(subnet.Address, "/"); ok {
+		cidr, err := strconv.Atoi(prefix)
+		if err != nil {
+			return "", 0, fmt.Errorf("invalid address prefix %q: %w", subnet.Address, err)
+		}
+		return address, cidr, nil
 	}
 
-	return applyResolvConf(subnet.DNSNameservers, subnet.DNSSearch)
+	if subnet.Netmask == "" {
+		return "", 0, fmt.Errorf("address %q has no CIDR prefix and no netmask was given", subnet.Address)
+	}
+
+	cidr, err := netmaskToCIDR(subnet.Netmask)
+	if err != nil {
+		return "", 0, err
+	}
+
+	return subnet.Address, cidr, nil
 }
 
 // applyResolvConf writes /etc/resolv.conf for a statically addressed
@@ -142,12 +197,9 @@ func applyResolvConf(nameservers, search []string) error {
 	for _, ns := range nameservers {
 		fmt.Fprintf(&sb, "nameserver %s\n", ns)
 	}
+	fmt.Fprintln(&sb, userConfigMarker)
 
-	if err := os.WriteFile(resolvConfPath, []byte(sb.String()), 0o644); err != nil {
-		return fmt.Errorf("write %s: %w", resolvConfPath, err)
-	}
-
-	return nil
+	return writeManagedFile(resolvConfPath, sb.String(), 0o644)
 }
 
 // enableService symlinks a service's /etc/sv definition into the active

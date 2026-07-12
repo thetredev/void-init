@@ -34,3 +34,5 @@ slaac private
 
 # Release before link goes DOWN
 release
+
+#void-init: user config starts here

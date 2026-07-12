@@ -1,0 +1,18 @@
+version: 1
+config:
+    - type: physical
+      name: eth0
+      mac_address: 'bc:24:11:b7:aa:aa'
+      subnets:
+      - type: ipv6_slaac
+    - type: physical
+      name: eth1
+      mac_address: 'bc:24:11:cd:e8:89'
+      subnets:
+      - type: static6
+        address: 'fd8c:314f:f123::900/64'
+    - type: nameserver
+      address:
+      - 'fd8c:314f:f123::1'
+      search:
+      - 'my.domain'

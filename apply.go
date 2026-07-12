@@ -7,6 +7,7 @@ import (
 	"os/user"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"syscall"
 )
 
@@ -44,7 +45,7 @@ func ApplyUserData(u *UserData) error {
 // applyHostname writes /etc/hostname and applies it to the running kernel,
 // mirroring `hostnamectl set-hostname <hostname>` on a minimal system.
 func applyHostname(hostname string) error {
-	if err := os.WriteFile(hostnamePath, []byte(hostname+"\n"), 0o644); err != nil {
+	if err := os.WriteFile(hostnamePath, []byte(withSingleTrailingNewline(hostname)), 0o644); err != nil {
 		return fmt.Errorf("write %s: %w", hostnamePath, err)
 	}
 
@@ -94,12 +95,9 @@ func applySSHAuthorizedKeys(username string, keys []string) error {
 
 	authorizedKeysPath := filepath.Join(sshDir, "authorized_keys")
 
-	content := ""
-	for _, key := range keys {
-		content += key + "\n"
-	}
+	content := strings.Join(keys, "\n")
 
-	if err := os.WriteFile(authorizedKeysPath, []byte(content), 0o600); err != nil {
+	if err := os.WriteFile(authorizedKeysPath, []byte(withSingleTrailingNewline(content)), 0o600); err != nil {
 		return fmt.Errorf("write %s: %w", authorizedKeysPath, err)
 	}
 	if err := os.Chown(authorizedKeysPath, uid, gid); err != nil {

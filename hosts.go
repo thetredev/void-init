@@ -3,7 +3,6 @@ package main
 import (
 	_ "embed"
 	"fmt"
-	"os"
 	"strings"
 	"text/template"
 )
@@ -45,11 +44,7 @@ func ApplyHosts(u *UserData, address string) error {
 		return fmt.Errorf("render hosts template: %w", err)
 	}
 
-	if err := os.WriteFile(hostsPath, []byte(rendered.String()), 0o644); err != nil {
-		return fmt.Errorf("write %s: %w", hostsPath, err)
-	}
-
-	return nil
+	return writeManagedFile(hostsPath, rendered.String(), 0o644)
 }
 
 // staticAddress returns the first statically configured interface address
@@ -59,7 +54,8 @@ func staticAddress(nc *NetworkConfig) string {
 		for _, device := range nc.Config {
 			for _, subnet := range device.Subnets {
 				if subnet.Type == "static" || subnet.Type == "static6" {
-					return subnet.Address
+					address, _, _ := strings.Cut(subnet.Address, "/")
+					return address
 				}
 			}
 		}
