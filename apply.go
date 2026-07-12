@@ -101,10 +101,10 @@ func applySSHAuthorizedKeys(username string, keys []string) error {
 
 	authorizedKeysPath := filepath.Join(sshDir, "authorized_keys")
 
-	content := strings.Join(keys, "\n")
+	content := strings.Join(keys, "\n") + "\n\n" + userConfigMarker
 
-	if err := os.WriteFile(authorizedKeysPath, []byte(withSingleTrailingNewline(content)), 0o600); err != nil {
-		return fmt.Errorf("write %s: %w", authorizedKeysPath, err)
+	if err := writeManagedFile(authorizedKeysPath, content, 0o600); err != nil {
+		return err
 	}
 	if err := os.Chown(authorizedKeysPath, uid, gid); err != nil {
 		return fmt.Errorf("chown %s: %w", authorizedKeysPath, err)

@@ -58,7 +58,7 @@ This produces a `void-init` binary (see `.gitignore`) using the templates embedd
 | [`main.go`](main.go) | Entry point; wires together finding, parsing, and applying `user-data` and `network-config`. |
 | [`cloudinit.go`](cloudinit.go) | Locates the cloud-init NoCloud datasource: globs candidate devices (`/dev/sr*`), mounts each read-only in turn, and reads `user-data`/`network-config` off the first one that has it. |
 | [`userdata.go`](userdata.go) | Defines the `UserData` struct (the Proxmox-exposed `#cloud-config` subset) and `ParseUserData`, which validates the `#cloud-config` header and unmarshals the YAML. |
-| [`apply.go`](apply.go) | `ApplyUserData`: sets `/etc/hostname` (and the live kernel hostname), the user's password hash via `usermod`, and `~/.ssh/authorized_keys`. |
+| [`apply.go`](apply.go) | `ApplyUserData`: sets `/etc/hostname` (and the live kernel hostname), the user's password hash via `usermod`, and `~/.ssh/authorized_keys` (managed like the other generated files, via `writeManagedFile`). |
 | [`network.go`](network.go) | Defines `NetworkConfig`/`NetworkConfigDevice`/`Subnet` (the NoCloud `network-config` v1 subset) and `ApplyNetworkConfig`, which brings interfaces up and configures them per subnet type; also owns `/etc/dhcpcd.conf`, `/etc/resolv.conf`, and the runit service enable/disable helpers. |
 | [`hosts.go`](hosts.go) | `ApplyHosts`: renders `/etc/hosts` from the `hosts` template, and `staticAddress`, which picks the address to put in it. |
 | [`fsutil.go`](fsutil.go) | Shared file-writing helpers: `writeManagedFile` (preserves the user-editable section of a managed file) and `withSingleTrailingNewline`. |
@@ -107,7 +107,7 @@ Every managed file void-init writes contains the marker line:
 #void-init: user config starts here
 ```
 
-On each run, `writeManagedFile` (in [`fsutil.go`](fsutil.go)) regenerates everything *up to and including* that marker, but preserves whatever the user appended after it in the file that's already on disk. This lets you hand-edit `/etc/hosts`, `/etc/dhcpcd.conf`, or `/etc/resolv.conf` below the marker without those edits being clobbered the next time void-init runs.
+On each run, `writeManagedFile` (in [`fsutil.go`](fsutil.go)) regenerates everything *up to and including* that marker, but preserves whatever the user appended after it in the file that's already on disk. This lets you hand-edit `/etc/hosts`, `/etc/dhcpcd.conf`, `/etc/resolv.conf`, or `~/.ssh/authorized_keys` below the marker without those edits being clobbered the next time void-init runs.
 
 ## Testing
 
