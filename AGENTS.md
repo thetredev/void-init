@@ -31,7 +31,8 @@ Flat `package main` at the repo root — one binary, `void-init`:
 | `cloudinit.go` | `FindUserData`/`FindNetworkConfig`: glob `/dev/sr*`, mount each candidate read-only as `iso9660` in turn, read the named file off the first one that has it. |
 | `userdata.go` | `UserData` struct (the Proxmox-exposed `#cloud-config` subset) + `ParseUserData` (validates the `#cloud-config` header, unmarshals YAML). |
 | `apply.go` | `ApplyUserData`: `/etc/hostname` + live `sethostname(2)`, password hash via `usermod -p`, SSH authorized keys (via `writeManagedFile`, see below). |
-| `network.go` | `NetworkConfig`/`NetworkConfigDevice`/`Subnet` (NoCloud `network-config` v1 subset) + `ApplyNetworkConfig`: resolves `physical` entries to a real interface by MAC (not by `name` — predictable interface naming isn't guaranteed to match what cloud-init supplied), brings interfaces up, hands DHCP/SLAAC subnet types to `dhcpcd`, applies `static`/`static6` directly via `ip addr add`/`ip route add`, merges all nameservers into one `/etc/resolv.conf` write. Also owns the runit service enable/disable helpers. |
+| `network.go` | `NetworkConfig`/`NetworkConfigDevice`/`Subnet` (NoCloud `network-config` v1 subset) + `ApplyNetworkConfig`: resolves `physical` entries to a real interface by MAC (not by `name` — predictable interface naming isn't guaranteed to match what cloud-init supplied), brings interfaces up, hands DHCP/SLAAC subnet types to `dhcpcd`, applies `static`/`static6` directly via `ip addr add`/`ip route add`, merges all nameservers into one `/etc/resolv.conf` write. |
+| `runit.go` | `svDir`/`runsvdirCurrent` (the runit layout: `/etc/sv/<name>` holds each service's definition, `/etc/runit/runsvdir/current/` is the active runsvdir) + `enableService`/`disableService`, both package-private: `enableService` symlinks `svDir/<name>` into `runsvdirCurrent`, mirroring `ln -s /etc/sv/<name> /etc/runit/runsvdir/current/`; `disableService` removes that symlink, mirroring `rm /etc/runit/runsvdir/current/<name>`. Both are idempotent — already-enabled/-disabled is logged and treated as success, not an error. Call sites live in `network.go`: `applyDynamicNetwork` enables `dhcpcd`, `applyStaticNetwork` disables it. |
 | `hosts.go` | `ApplyHosts`: renders `/etc/hosts` from a template; `staticAddress` picks the address to put in it (first static subnet found, else the `127.0.1.1` loopback alias). |
 | `fsutil.go` | `writeManagedFile` (see below) and `withSingleTrailingNewline`. |
 | `log.go` | Leveled logging (`logInfo`/`logWarn`/`logError`), see Logging section below. |
@@ -111,7 +112,7 @@ line format and level semantics, parameterized by program name and an optional f
 **Void Linux specifics:**
 - Init system is `runit`, not `systemd`. A runit service is "enabled" by symlinking its
   definition from `/etc/sv/<name>` into the active `runsvdir` (`/etc/runit/runsvdir/current/`),
-  and "disabled" by removing that symlink — see `enableService`/`disableService` in `network.go`.
+  and "disabled" by removing that symlink — see `enableService`/`disableService` in `runit.go`.
 - `dhcpcd` is Void's standard DHCP client, also handles IPv6 SLAAC/RA (hence it covers `dhcp`,
   `dhcp4`, `dhcp6`, `ipv6_slaac`, `ipv6_dhcpv6-stateless`, `ipv6_dhcpv6-stateful` subnet types).
 - Package manager is XBPS (`xbps-install`, `xbps-reconfigure`, `xbps-query`, `xbps-remove`).
