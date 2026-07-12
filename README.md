@@ -74,10 +74,9 @@ See [`testfiles/user-data`](testfiles/user-data) for a full example. Supported k
 
 See [`testfiles/network-config`](testfiles/network-config) for a full example. `network-config` is a `version: 1` NoCloud document whose `config` list holds a mix of:
 
-- **`type: physical`** entries - a `name` (interface name) plus a list of `subnets`. Each subnet is one of:
+- **`type: physical`** entries - a `mac_address` plus a list of `subnets`. The entry is resolved to an actual local interface by matching `mac_address` against the host's interfaces (`name` is parsed but not used for matching, since predictable interface naming means it isn't guaranteed to match what cloud-init supplied). Each subnet is one of:
   - `dhcp`, `dhcp4`, `dhcp6`, `ipv6_slaac`, `ipv6_dhcpv6-stateless`, `ipv6_dhcpv6-stateful` - the interface is brought up and handed to `dhcpcd` (which handles both DHCP and IPv6 SLAAC/RA), enabling the `dhcpcd` runit service.
   - `static`, `static6` - the interface is brought up and addressed directly via `ip addr add`/`ip route add`, and the `dhcpcd` service is disabled for it. `address` may either be a plain address with a separate dotted-decimal `netmask`, or carry its own `/<prefix>` suffix (e.g. `fd8c::1/64`), which takes precedence. `gateway` is optional; if set, a default route is added. `dns_nameservers`/`dns_search` contribute to `/etc/resolv.conf`.
-  - `mac_address` is parsed but not currently used to match interfaces (interfaces are matched by `name`).
 - **`type: nameserver`** entries - a global `address` list and `search` list, merged into `/etc/resolv.conf` alongside anything gathered from static subnets.
 
 All nameservers/search domains gathered across the whole config (from both static subnets and top-level `nameserver` entries) are merged into a single `/etc/resolv.conf` write.
@@ -110,5 +109,4 @@ Tests parse the fixtures in [`testfiles/`](testfiles) and exercise pure logic li
 ## Known limitations / TODO
 
 - No option (yet) to generate a bootable, cloud-init-ready Void Linux rootfs from scratch with void-init pre-installed.
-- Interfaces are matched by `name`, not `mac_address`, even though `network-config` provides the latter.
 - Only the NoCloud datasource (CD-ROM device glob `/dev/sr*`) is supported - no HTTP/config-drive/other datasources.

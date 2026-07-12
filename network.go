@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	_ "embed"
 	"fmt"
 	"net"
@@ -79,20 +80,25 @@ func ApplyNetworkConfig(nc *NetworkConfig) error {
 	for _, device := range nc.Config {
 		switch device.Type {
 		case "physical":
+			iface, err := interfaceNameByMAC(device.MacAddress)
+			if err != nil {
+				return err
+			}
+
 			for _, subnet := range device.Subnets {
 				switch subnet.Type {
 				case "dhcp", "dhcp4", "dhcp6", "ipv6_slaac", "ipv6_dhcpv6-stateless", "ipv6_dhcpv6-stateful":
-					if err := applyDynamicNetwork(device.Name); err != nil {
+					if err := applyDynamicNetwork(iface); err != nil {
 						return err
 					}
 				case "static", "static6":
-					if err := applyStaticNetwork(device.Name, subnet); err != nil {
+					if err := applyStaticNetwork(iface, subnet); err != nil {
 						return err
 					}
 					nameservers = append(nameservers, subnet.DNSNameservers...)
 					search = append(search, subnet.DNSSearch...)
 				default:
-					return fmt.Errorf("unsupported subnet type %q for interface %s", subnet.Type, device.Name)
+					return fmt.Errorf("unsupported subnet type %q for interface %s", subnet.Type, device.MacAddress)
 				}
 			}
 		case "nameserver":
@@ -104,6 +110,31 @@ func ApplyNetworkConfig(nc *NetworkConfig) error {
 	}
 
 	return applyResolvConf(nameservers, search)
+}
+
+// interfaceNameByMAC returns the name of the local network interface whose
+// hardware address matches mac, as reported by the kernel. This is how
+// network-config's "physical" entries are resolved to an actual interface,
+// since predictable interface naming means the "name" cloud-init supplies
+// isn't guaranteed to match what's actually on the host.
+func interfaceNameByMAC(mac string) (string, error) {
+	want, err := net.ParseMAC(mac)
+	if err != nil {
+		return "", fmt.Errorf("invalid mac_address %q: %w", mac, err)
+	}
+
+	ifaces, err := net.Interfaces()
+	if err != nil {
+		return "", fmt.Errorf("list network interfaces: %w", err)
+	}
+
+	for _, iface := range ifaces {
+		if bytes.Equal(iface.HardwareAddr, want) {
+			return iface.Name, nil
+		}
+	}
+
+	return "", fmt.Errorf("no interface found with mac_address %q", mac)
 }
 
 // applyDynamicNetwork brings iface up, renders dhcpcd.conf, and enables the
