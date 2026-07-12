@@ -21,7 +21,7 @@ func packages(l layout) []string {
 		"base-system", "linux", "dracut", "runit-void", "dhcpcd",
 		"iproute2", "openssh", "shadow", "e2fsprogs", "dosfstools",
 		"ca-certificates", "iana-etc", "bash-completion", "net-tools",
-		"qemu-ga",
+		"qemu-ga", "binutils", "zstd",
 	}
 
 	if l == layoutEFI {
