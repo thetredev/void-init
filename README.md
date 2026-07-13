@@ -122,7 +122,7 @@ go test ./...
 
 Tests parse the fixtures in [`cmd/void-init/testfiles/`](cmd/void-init/testfiles) and exercise pure logic like `subnetAddressCIDR`. Nothing that touches the live system (mounting devices, running `ip`/`chpasswd`, writing to `/etc`, or - for `void-initfs` - `qemu-nbd`/`sgdisk`/`systemd-nspawn`) is covered by automated tests - those paths are meant to be exercised on an actual VM/host.
 
-## `void-initfs`
+## void-initfs
 
 `void-initfs` is a separate, host-side build tool that produces a bootable, cloud-init-ready Void Linux qcow2 disk image with `void-init` pre-installed and `/etc/rc.local` wired up to run it, so a VM booted from that image self-configures via `void-init` on first boot. It runs on a `systemd`-based host (uses `systemd-nspawn`, without `--boot`, to run package post-install scripts and install the bootloader inside the image being built) and targets x86_64 only.
 
