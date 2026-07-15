@@ -8,8 +8,10 @@ import (
 
 // rcLocal is the /etc/rc.local void-initfs writes into every image.
 // void-init does the rest of the work itself at first boot - there's no
-// mirroring of that boot-time logic here.
-const rcLocal = "#!/bin/sh\n/usr/local/bin/void-init\n"
+// mirroring of that boot-time logic here. It ends with userConfigMarker so
+// reruns of void-initfs against an already-built rootfs preserve anything
+// the user appended below the marker.
+const rcLocal = "#!/bin/sh\n/usr/local/bin/void-init\n\n" + userConfigMarker
 
 // installBinaries copies the void-init and void-initfs binaries at binaryPath
 // into root's /usr/local/bin and wires up /etc/rc.local to run it. sshd (already
@@ -32,7 +34,7 @@ func installBinaries(root, binaryPath string) error {
 
 	rcLocalPath := filepath.Join(root, "etc", "rc.local")
 	logInfo("writing %s", rcLocalPath)
-	if err := writeFile(rcLocalPath, rcLocal, 0o755); err != nil {
+	if err := writeManagedFile(rcLocalPath, rcLocal, 0o755); err != nil {
 		return err
 	}
 

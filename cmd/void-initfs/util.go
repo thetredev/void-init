@@ -7,6 +7,35 @@ import (
 	"strings"
 )
 
+// userConfigMarker delimits the managed portion of a void-initfs-written
+// file from a trailing section left for the user, mirroring void-init's own
+// marker (see userConfigMarker in cmd/void-init/fsutil.go). Anything at or
+// after this marker in a file already present in root is preserved verbatim
+// across reruns of void-initfs against the same rootfs.
+const userConfigMarker = "#void-init: user config starts here"
+
+// writeManagedFile writes rendered to path, preserving whatever the user
+// has appended after userConfigMarker in the file that's already there (if
+// any). rendered itself is expected to end with the marker, followed by
+// nothing, i.e. the default (empty) user section for a fresh image.
+func writeManagedFile(path, rendered string, perm os.FileMode) error {
+	header := rendered
+	if idx := strings.Index(rendered, userConfigMarker); idx >= 0 {
+		header = rendered[:idx+len(userConfigMarker)]
+	}
+
+	userSection := ""
+	if data, err := os.ReadFile(path); err == nil {
+		if idx := strings.Index(string(data), userConfigMarker); idx >= 0 {
+			userSection = string(data)[idx+len(userConfigMarker):]
+		}
+	} else if !os.IsNotExist(err) {
+		return fmt.Errorf("read %s: %w", path, err)
+	}
+
+	return writeFile(path, header+userSection, perm)
+}
+
 // writeFile writes content to path with the given permissions, ending
 // with exactly one trailing newline - mirroring void-init's own
 // file-writing convention (see withSingleTrailingNewline in
