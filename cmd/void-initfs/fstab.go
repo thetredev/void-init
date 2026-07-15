@@ -28,7 +28,9 @@ func partitionUUID(dev string) (string, error) {
 }
 
 // writeFstab renders /etc/fstab into root, listing every partition in l's
-// layout by UUID.
+// layout by UUID. The template ends with userConfigMarker, so anything the
+// user appended below it in a previously-built root is preserved across
+// reruns.
 func writeFstab(root string, l layout) error {
 	rootUUID, err := partitionUUID(rootPartitionDevice(l))
 	if err != nil {
@@ -60,7 +62,7 @@ func writeFstab(root string, l layout) error {
 	}
 
 	path := root + "/etc/fstab"
-	if err := writeFile(path, rendered.String(), 0o644); err != nil {
+	if err := writeManagedFile(path, rendered.String(), 0o644); err != nil {
 		return err
 	}
 

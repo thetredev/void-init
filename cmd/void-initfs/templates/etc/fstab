@@ -6,3 +6,5 @@ UUID={{.BootUUID}}            /boot          ext2    defaults   0       2
 {{- if .EFIUUID}}
 UUID={{.EFIUUID}}             /boot/efi      vfat    defaults   0       2
 {{- end}}
+
+#void-init: user config starts here

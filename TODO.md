@@ -1,4 +1,3 @@
-- modifications to `<rootfs>/etc/fstab` should also respect/add the `#void-init:` marker!!!
 - EFI fastboot: set `GRUB_TIMEOUT=0`, `GRUB_TIMEOUT_STYLE=hidden`, `GRUB_RECORDFAIL_TIMEOUT=0`
 - BIOS fastboot: boot directly from the kernel and skip GRUB entirely. Maybe not even install it if that's possible?
 - void-initfs: add flag `--compress <format> -- <args>` where `<format>` defaults to `zstd` with best performance/compress ratio, not the lowest, not the highest (must be last flag because of `--`!)
