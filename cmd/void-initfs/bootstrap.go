@@ -52,7 +52,11 @@ func bootstrap(root string, l layout, libc string, userPackages string) error {
 	}
 
 	logInfo("bootstrapping %s and user packages (%s, %s) into %s", libc, arch, repo, root)
-	_userPackages := strings.Split(userPackages, ",")
+
+	var _userPackages []string
+	if userPackages != "" {
+		_userPackages = strings.Split(userPackages, ",")
+	}
 
 	args := append([]string{
 		"xbps-install", "-S", "-y",
