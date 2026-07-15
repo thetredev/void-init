@@ -2,7 +2,9 @@ package main
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 )
 
@@ -41,11 +43,80 @@ func installBootloader(root string, l layout) error {
 		return err
 	}
 
+	if l == layoutEFI {
+		if err := setGrubFastboot(root); err != nil {
+			return err
+		}
+	}
+
 	mkconfig, err := grubMkconfigCommand(l)
 	if err != nil {
 		return err
 	}
 	return nspawn(root, bind, mkconfig...)
+}
+
+// grubFastbootSettings are the /etc/default/grub keys set for a fast,
+// menu-free EFI boot: no visible countdown (GRUB_TIMEOUT_STYLE=hidden),
+// no delay before booting the default entry (GRUB_TIMEOUT=0), and no extra
+// wait added after a previously recorded boot failure
+// (GRUB_RECORDFAIL_TIMEOUT=0) - without the latter, grub silently reverts
+// to a 30s prompt-and-wait on the boot after any failure, defeating the
+// other two. Order matches the TODO that requested this.
+var grubFastbootSettings = []struct{ key, value string }{
+	{"GRUB_TIMEOUT", "0"},
+	{"GRUB_TIMEOUT_STYLE", "hidden"},
+	{"GRUB_RECORDFAIL_TIMEOUT", "0"},
+}
+
+// grubDefaultKeyRE matches a /etc/default/grub assignment line, whether or
+// not it's commented out - Void's shipped file leaves most keys present
+// but commented, so overriding a key needs to replace that line rather
+// than append a duplicate that later wins or loses depending on order.
+var grubDefaultKeyRE = regexp.MustCompile(`^\s*#?\s*([A-Z_]+)=`)
+
+// setGrubFastboot rewrites root's /etc/default/grub, setting each key in
+// grubFastbootSettings to its fastboot value - replacing the key's
+// existing line (commented or not) if present, appending it otherwise.
+// Must run after grub-install and before grub-mkconfig, which is what
+// turns this file into the generated grub.cfg.
+func setGrubFastboot(root string) error {
+	path := filepath.Join(root, "etc", "default", "grub")
+
+	info, err := os.Stat(path)
+	if err != nil {
+		return fmt.Errorf("stat %s: %w", path, err)
+	}
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return fmt.Errorf("read %s: %w", path, err)
+	}
+
+	lines := strings.Split(string(data), "\n")
+	set := make(map[string]bool, len(grubFastbootSettings))
+
+	for i, line := range lines {
+		m := grubDefaultKeyRE.FindStringSubmatch(line)
+		if m == nil {
+			continue
+		}
+		for _, s := range grubFastbootSettings {
+			if m[1] == s.key {
+				lines[i] = fmt.Sprintf("%s=%s", s.key, s.value)
+				set[s.key] = true
+			}
+		}
+	}
+
+	for _, s := range grubFastbootSettings {
+		if !set[s.key] {
+			lines = append(lines, fmt.Sprintf("%s=%s", s.key, s.value))
+		}
+	}
+
+	logInfo("setting grub fastboot options in %s", path)
+	return writeFile(path, strings.Join(lines, "\n"), info.Mode().Perm())
 }
 
 // grubMkconfigCommand builds the shell command grub-mkconfig runs under,
